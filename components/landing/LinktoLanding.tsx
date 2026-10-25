@@ -101,7 +101,7 @@ function PrimaryCta({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600 mb-4">
+    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 mb-4">
       {children}
     </p>
   );
@@ -184,7 +184,7 @@ export function LinktoLanding() {
             {LOGO_NAMES.map((name) => (
               <span
                 key={name}
-                className="text-sm font-semibold text-slate-400 grayscale opacity-70"
+                className="text-sm font-semibold text-slate-500"
               >
                 {name}
               </span>
@@ -534,7 +534,7 @@ function FeatureVisual({ type }: { type: string }) {
               {c[0].toUpperCase()}
             </span>
             <span className="font-mono text-sm text-slate-700">/{c}</span>
-            <span className="ml-auto text-xs text-emerald-600 font-medium">
+            <span className="ml-auto text-xs text-emerald-700 font-medium">
               attributed
             </span>
           </li>
@@ -604,7 +604,7 @@ function Footer() {
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">
               Product
             </p>
             <ul className="space-y-2 text-sm">
@@ -626,7 +626,7 @@ function Footer() {
             </ul>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">
               Company
             </p>
             <ul className="space-y-2 text-sm">
@@ -646,7 +646,7 @@ function Footer() {
             </ul>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">
               Legal
             </p>
             <ul className="space-y-2 text-sm">
@@ -663,7 +663,7 @@ function Footer() {
             </ul>
           </div>
         </div>
-        <p className="mt-12 pt-8 border-t border-white/5 text-xs text-center text-slate-600">
+        <p className="mt-12 pt-8 border-t border-white/5 text-xs text-center text-slate-400">
           © {new Date().getFullYear()} Linkto. Creator analytics, not just link
           shortening.
         </p>

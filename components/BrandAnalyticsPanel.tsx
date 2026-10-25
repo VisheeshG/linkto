@@ -316,13 +316,7 @@ export function BrandAnalyticsPanel({ projectIds, projects = [] }: BrandAnalytic
         <BreakdownCard title="Referrers" data={analytics.clicksByReferrer} icon={Share2} />
       </div>
 
-      <section aria-labelledby="brand-geo-heading">
-        <h3 id="brand-geo-heading" className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-900">
-          <Globe2 className="h-[18px] w-[18px] text-primary-600" aria-hidden />
-          Where clicks came from
-        </h3>
-        <GeoInsightsPanelClient clicks={analytics.filteredClicks} />
-      </section>
+      <GeoInsightsPanelClient clicks={analytics.filteredClicks} />
     </div>
   );
 }
