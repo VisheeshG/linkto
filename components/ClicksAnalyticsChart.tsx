@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -104,44 +104,26 @@ export function ClicksAnalyticsChart({
   const fontSize = isMobile ? "0.625rem" : "0.75rem";
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6 mb-6 sm:mb-8">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4 sm:mb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg">
-            <BarChart3 className="w-5 h-5 text-white" />
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 print-avoid-break">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+            <BarChart3 className="h-[18px] w-[18px]" aria-hidden />
           </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-slate-900">
-              Clicks over time
-            </h3>
-            <p className="text-xs text-slate-600">
-              {`${dayjs(startDate).format("MMM D, YYYY")} - ${dayjs(
-                endDate
-              ).format("MMM D, YYYY")}`}
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-slate-900 leading-6">Clicks over time</h3>
+            <p className="text-sm text-slate-600">
+              {`${dayjs(startDate).format("MMM D, YYYY")} – ${dayjs(endDate).format("MMM D, YYYY")}`}
               {unit !== "day" && ` · ${unit === "week" ? "weekly" : "monthly"} totals`}
             </p>
           </div>
         </div>
-
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-end">
-          {/* Statistics Card */}
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-2">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-4 h-4 text-indigo-600" />
-              </div>
-              <div className="flex items-baseline gap-2">
-                <p className="text-md text-slate-600 font-medium whitespace-nowrap">
-                  Total Clicks:
-                </p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900">
-                  {formatNumberWithCommas(totalClicks)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-        </div>
+        <p className="flex items-baseline gap-1.5 sm:block sm:text-right">
+          <span className="text-2xl font-bold tabular-nums text-slate-900 sm:block">
+            {formatNumberWithCommas(totalClicks)}
+          </span>
+          <span className="text-xs text-slate-600">clicks in range</span>
+        </p>
       </div>
 
       <div className="w-full h-56 sm:h-64 lg:h-72 overflow-x-auto overflow-y-hidden">
@@ -196,7 +178,7 @@ export function ClicksAnalyticsChart({
               <defs>
                 <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#4f46e5" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.8} />
+                  <stop offset="100%" stopColor="#818cf8" stopOpacity={0.9} />
                 </linearGradient>
               </defs>
             </BarChart>

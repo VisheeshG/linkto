@@ -10,3 +10,4 @@ export { Tabs, TabPanel, type TabItem } from "./Tabs";
 export { Skeleton, LoadingBlock, EmptyState, ErrorState } from "./States";
 export { CopyButton } from "./CopyButton";
 export { PageHeader } from "./PageHeader";
+export { Switch } from "./Switch";

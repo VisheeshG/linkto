@@ -384,25 +384,32 @@ function ProjectDetailsContent({
   };
 
   if (selectedLink) {
+    const backToProject = () => {
+      setSelectedLink(null);
+      // Remove either ?link_id=<id> or ?<id> from the URL
+      const params = new URLSearchParams(Array.from(searchParams.entries()));
+      params.delete("link_id");
+      // Also delete the id-only key if present
+      if (selectedLink?.id) {
+        params.delete(selectedLink.id);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `?${qs}` : `/dashboard/${project.id}`);
+    };
     return (
       <Analytics
         link={selectedLink}
-        onBack={() => {
-          setSelectedLink(null);
-          // Remove either ?link_id=<id> or ?<id> from the URL
-          const params = new URLSearchParams(
-            Array.from(searchParams.entries())
-          );
-          params.delete("link_id");
-          // Also delete the id-only key if present
-          if (selectedLink?.id) {
-            params.delete(selectedLink.id);
-          }
-          const qs = params.toString();
-          router.replace(qs ? `?${qs}` : `/dashboard/${project.id}`);
-        }}
+        onBack={backToProject}
         projectSlug={project.slug}
         brandSlug={brandSlug}
+        crumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          ...(project.brand_id && brandName
+            ? [{ label: brandName, href: `/dashboard/brands/${project.brand_id}` }]
+            : []),
+          { label: project.name, onClick: backToProject },
+          { label: selectedLink.link_title },
+        ]}
       />
     );
   }

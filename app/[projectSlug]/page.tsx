@@ -240,6 +240,7 @@ export default function PublicProjectPage() {
         projectSlug={project.slug}
         brandSlug={brandSlug}
         clickSource={clickSource}
+        projectName={project.name}
         onBack={() => {
           setSelectedLinkId(null);
           const url = new URL(window.location.href);

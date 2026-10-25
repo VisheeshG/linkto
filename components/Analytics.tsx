@@ -1,7 +1,30 @@
 "use client";
 
 import { StatCard } from "@/components/StatCard";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { AppHeader, type Crumb } from "@/components/app/AppHeader";
+import {
+  Badge,
+  Button,
+  CopyButton,
+  DropdownMenu,
+  EmptyState,
+  ErrorState,
+  LoadingBlock,
+  PageHeader,
+  Skeleton,
+  TabPanel,
+  Tabs,
+  buttonClasses,
+  type TabItem,
+} from "@/components/ui";
+import { formatNumber } from "@/lib/format";
+import { AnalyticsToolbar, type DateRangeState } from "./analytics/AnalyticsToolbar";
+import { BreakdownCard } from "./analytics/BreakdownCard";
+import { CreatorDetailDialog } from "./analytics/CreatorDetailDialog";
+import { CreatorTable } from "./analytics/CreatorTable";
+import { LinkSetupPanel } from "./analytics/LinkSetupPanel";
+import { TrafficQualityCard } from "./analytics/TrafficQualityCard";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, LinkClick } from "@/lib/supabase";
 import {
   ClickSource,
@@ -9,24 +32,28 @@ import {
   loadClicksForLink,
 } from "@/lib/click-source";
 import {
+  AppWindow,
   ArrowLeft,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  MousePointerClick,
-  Monitor,
-  Users,
-  Eye,
-  X,
+  Building2,
   Download,
-  FileText,
+  ExternalLink,
   FileSpreadsheet,
-  ChevronDown,
+  FileText,
+  Globe2,
+  Hash,
+  LayoutDashboard,
+  Map as MapIcon,
+  MapPin,
+  Monitor,
+  MousePointerClick,
+  Settings2,
+  Share2,
+  Smartphone,
   UserCheck,
+  Users,
 } from "lucide-react";
 import { ClicksAnalyticsChart } from "./ClicksAnalyticsChart";
 import { GeoInsightsPanelClient } from "./GeoInsightsPanelLazy";
-import { AnalyticsDateRangePicker } from "./AnalyticsDateRangePicker";
 import {
   AggregatedClickAnalytics,
   aggregateClicks,
@@ -36,9 +63,6 @@ import {
 } from "@/lib/click-aggregation";
 import { parseDateKey } from "@/lib/analytics-time";
 import { useHideBotClicks } from "@/hooks/useHideBotClicks";
-import { BotFilterBar } from "./BotFilterBar";
-import { AnalyticsFiltersBar, AnalyticsViewMode } from "./AnalyticsFiltersBar";
-import { AnalyticsStatsCard as StatsCard } from "./AnalyticsStatsCard";
 import {
   ClickFilters,
   CreatorTableSortColumn,
@@ -47,12 +71,9 @@ import {
   SortDirection,
   buildCreatorRows,
   extractFilterOptions,
-  hasActiveFilters,
   matchesClickFilters,
   sortCreatorRows,
-  sortedLocationValues,
 } from "@/lib/click-filters";
-import { TrackingQrCode } from "./TrackingQrCode";
 import {
   buildTrackingUrlExample,
   buildTrackingUrlTemplate,
@@ -68,22 +89,6 @@ import { describeError } from "@/lib/describe-error";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
-function renderCreatorLocationCell(values: Set<string>) {
-  const list = sortedLocationValues(values);
-  if (list.length === 0) {
-    return <span className="text-slate-400">-</span>;
-  }
-  const label = list.join(", ");
-  return (
-    <span
-      className="block max-w-[10rem] sm:max-w-[12rem] truncate text-slate-700"
-      title={label}
-    >
-      {label}
-    </span>
-  );
-}
-
 interface AnalyticsProps {
   link: Link;
   onBack: () => void;
@@ -91,7 +96,13 @@ interface AnalyticsProps {
   brandSlug?: string | null;
   /** Defaults to the signed-in owner's Supabase session. */
   clickSource?: ClickSource;
+  /** Breadcrumbs for the app header (owner view). */
+  crumbs?: Crumb[];
+  /** Shown above the title on the shared client page. */
+  projectName?: string;
 }
+
+type AnalyticsTab = "overview" | "creators" | "audience" | "map" | "setup";
 
 
 export function Analytics({
@@ -100,6 +111,8 @@ export function Analytics({
   projectSlug,
   brandSlug = null,
   clickSource = OWNER_CLICK_SOURCE,
+  crumbs,
+  projectName,
 }: AnalyticsProps) {
   const [allClicks, setAllClicks] = useState<LinkClick[]>([]);
   const [hideBots, setHideBots] = useHideBotClicks();
@@ -131,22 +144,19 @@ export function Analytics({
   const [creatorTableSort, setCreatorTableSort] = useState<{
     column: CreatorTableSortColumn;
     direction: SortDirection;
-  }>({ column: "lastClick", direction: "desc" });
-  const [analyticsViewMode, setAnalyticsViewMode] =
-    useState<AnalyticsViewMode>("detailed");
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  }>({ column: "totalClicks", direction: "desc" });
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>("overview");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadAnalytics = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       const clicks = await loadClicksForLink(clickSource, link.id);
       setAllClicks(clicks);
     } catch (error) {
       console.error("Error loading analytics:", error);
-      toast.error(
-        `Couldn't load click data: ${describeError(error)}`,
-        { id: "analytics-load-error", duration: 8000 }
-      );
+      setLoadError(describeError(error));
     } finally {
       setLoading(false);
     }
@@ -155,20 +165,6 @@ export function Analytics({
   useEffect(() => {
     loadAnalytics();
   }, [loadAnalytics]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        exportMenuRef.current &&
-        !exportMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsExportMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const visibleClicks = useMemo(
     () => filterBotClicks(allClicks, hideBots),
@@ -196,11 +192,6 @@ export function Analytics({
   const trafficSummary = useMemo(
     () => summarizeTraffic(dateFilteredAllTraffic),
     [dateFilteredAllTraffic]
-  );
-
-  const filteredClicks = useMemo(
-    () => visibleClicks.filter((click) => matchesClickFilters(click, clickFilters)),
-    [visibleClicks, clickFilters]
   );
 
   const dateFilteredClicks = useMemo(
@@ -397,7 +388,6 @@ export function Analytics({
     // Click detail = every filtered click row
     XLSX.utils.book_append_sheet(workbook, worksheet, "Clicks Detail");
     XLSX.writeFile(workbook, `${getExportFilenamePrefix()}.xlsx`);
-    setIsExportMenuOpen(false);
   };
 
   const handleExportPdf = () => {
@@ -523,7 +513,6 @@ export function Analytics({
     }
 
     doc.save(`${getExportFilenamePrefix()}.pdf`);
-    setIsExportMenuOpen(false);
   };
 
   const sortedCreatorRows = useMemo(
@@ -688,912 +677,326 @@ export function Analytics({
         })
       : "";
 
+  const owner = clickSource.kind === "owner";
+  const expired = link.expires_at ? new Date(link.expires_at) <= new Date() : false;
+  const topOf = (record: Record<string, number>) =>
+    Object.entries(record).sort((x, y) => y[1] - x[1])[0] ?? null;
+  const topCreator = topOf(data.clicksByCreator);
+  const topCity = topOf(data.clicksByCity);
+  const humanInRange = trafficSummary.byType.human;
+
+  const rangeState: DateRangeState = {
+    preset: rangePreset,
+    startDate,
+    endDate,
+    minDate: allTimeRange.startDate,
+    maxDate: allTimeRange.endDate,
+    label: dateRangeLabel,
+    onPresetChange: applyPreset,
+    onStartDateChange: handleStartDateChange,
+    onEndDateChange: handleEndDateChange,
+  };
+
+  const header = owner ? (
+    <AppHeader crumbs={crumbs} />
+  ) : (
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur print-hidden">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 lg:px-8">
+        <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onBack}>
+          All links
+        </Button>
+        {projectName && (
+          <span className="truncate text-sm font-medium text-slate-700">{projectName}</span>
+        )}
+      </div>
+    </header>
+  );
+
+  const titleBlock = (
+    <PageHeader
+      title={link.link_title}
+      meta={
+        <>
+          <Badge tone="primary">{link.platform}</Badge>
+          {expired && <Badge tone="danger">Expired</Badge>}
+          {link.utm_enabled && <Badge tone="info">UTM</Badge>}
+        </>
+      }
+      description={
+        <span className="flex min-w-0 items-center gap-1.5 text-sm">
+          <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+          <a
+            href={link.destination_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={link.destination_url}
+            className="truncate text-primary-700 hover:underline"
+          >
+            {link.destination_url}
+          </a>
+        </span>
+      }
+      actions={
+        <>
+          {trackingUrlTemplate && (
+            <CopyButton text={trackingUrlTemplate} label="Copy tracking URL" size="md" />
+          )}
+          <DropdownMenu
+            label="Export report"
+            items={[
+              {
+                label: "Export PDF",
+                description: "Summary, charts data and clicks",
+                icon: FileText,
+                onSelect: handleExportPdf,
+                disabled: !canExport,
+              },
+              {
+                label: "Export Excel",
+                description: "Every click as a spreadsheet",
+                icon: FileSpreadsheet,
+                onSelect: handleExportExcel,
+                disabled: !canExport,
+              },
+            ]}
+            trigger={(props) => (
+              <button
+                {...props}
+                type="button"
+                disabled={!canExport}
+                className={buttonClasses({ variant: "secondary" })}
+              >
+                <Download className="h-[18px] w-[18px]" aria-hidden />
+                <span>Export</span>
+              </button>
+            )}
+          />
+        </>
+      }
+    />
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl mb-4 animate-pulse shadow-lg">
-            <MousePointerClick className="w-8 h-8 text-white" />
-          </div>
-          <p className="text-slate-700 font-semibold text-lg">
-            Loading analytics...
-          </p>
-          <p className="text-slate-500 text-sm mt-1">
-            Please wait while we fetch your data
-          </p>
-        </div>
+      <div className="min-h-screen bg-slate-50">
+        {header}
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 lg:px-8">
+          <LoadingBlock label="Loading analytics">
+            <Skeleton className="mb-2 h-8 w-64 max-w-full" />
+            <Skeleton className="mb-6 h-4 w-80 max-w-full" />
+            <Skeleton className="mb-6 h-14" />
+            <div className="mb-6 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20 sm:h-24" />
+              ))}
+            </div>
+            <Skeleton className="h-72" />
+          </LoadingBlock>
+        </main>
       </div>
     );
   }
 
+  const setupPanel = (
+    <LinkSetupPanel
+      link={link}
+      trackingUrlTemplate={trackingUrlTemplate}
+      exampleUrl={exampleUrl}
+      showQr={owner}
+      qrProps={
+        owner && typeof window !== "undefined"
+          ? {
+              baseUrl: window.location.origin,
+              brandSlug,
+              projectSlug,
+              shortCode: link.short_code,
+              includeSubmissionInUrl: includeSub,
+              fileNamePrefix: getExportFilenamePrefix(),
+            }
+          : null
+      }
+    />
+  );
+
+  const tabs: TabItem<AnalyticsTab>[] = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    { id: "creators", label: "Creators", icon: Users, count: sortedCreatorRows.length },
+    { id: "audience", label: "Audience", icon: Globe2 },
+    { id: "map", label: "Map", icon: MapIcon },
+    { id: "setup", label: "Setup", icon: Settings2 },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4 flex items-start gap-2 sm:gap-3">
-          <button
-            onClick={onBack}
-            aria-label="Back"
-            className="group shrink-0 -ml-1 mt-0.5 sm:mt-1.5 p-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+    <div className="min-h-screen bg-slate-50">
+      {header}
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 lg:px-8">
+        {titleBlock}
 
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="text-xl sm:text-3xl font-bold text-slate-900 break-words min-w-0">
-                {link.link_title}
-              </h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 border border-blue-300">
-                {link.platform}
-              </span>
-            </div>
-            <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 text-xs sm:text-sm min-w-0">
-              <span className="text-slate-600 font-semibold shrink-0">
-                Destination:
-              </span>
-              <a
-                href={link.destination_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={link.destination_url}
-                className="text-blue-600 hover:text-blue-700 hover:underline truncate font-medium transition-colors"
-              >
-                {link.destination_url}
-              </a>
-            </div>
-          </div>
-          <div className="relative shrink-0 self-start" ref={exportMenuRef}>
-            <button
-              type="button"
-              onClick={() => setIsExportMenuOpen((prev) => !prev)}
-              disabled={!canExport}
-              aria-label="Download report"
-              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-2.5 sm:px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Download Report</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            {isExportMenuOpen && (
-              <div className="absolute right-0 z-50 mt-2 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-                <button
-                  type="button"
-                  onClick={handleExportPdf}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
-                >
-                  <FileText className="h-4 w-4 text-red-600" />
-                  Export PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
-                >
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                  Export Excel
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
-        <BotFilterBar
-          hideBots={hideBots}
-          onChange={setHideBots}
-          summary={trafficSummary}
-        />
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <StatCard
-            label="Total Clicks"
-            value={data.totalClicks}
-            icon={MousePointerClick}
-            iconBg="bg-blue-50"
-            iconColor="text-blue-600"
-          />
-
-          <StatCard
-            label="Unique Visitors"
-            value={data.uniqueVisitors}
-            icon={UserCheck}
-            iconBg="bg-emerald-50"
-            iconColor="text-emerald-600"
-          />
-
-          <StatCard
-            label="Creators"
-            value={Object.keys(data.clicksByCreator).length}
-            icon={Users}
-            iconBg="bg-orange-50"
-            iconColor="text-orange-600"
-          />
-
-          <StatCard
-            label="Devices"
-            value={Object.keys(data.clicksByDevice).length}
-            icon={Monitor}
-            iconBg="bg-cyan-50"
-            iconColor="text-cyan-600"
-          />
-        </div>
-
-        <div className="bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 border border-blue-200/60 rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-sm">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="p-2 bg-blue-600 rounded-lg">
-              <MousePointerClick className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1">
-                Tracking URL Format
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600">
-                Use this format to track different creators for this platform
-              </p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-slate-600 mb-2 font-medium">Format:</p>
-              <code className="block bg-white px-3 sm:px-4 py-3 rounded-xl font-mono text-xs sm:text-sm text-slate-800 overflow-x-auto shadow-sm border border-slate-200">
-                {trackingUrlTemplate}
-              </code>
-            </div>
-            <div>
-              <p className="text-xs text-slate-600 mb-2 font-medium">
-                Example:
-              </p>
-              <code className="block bg-gradient-to-r from-white to-blue-50 px-3 sm:px-4 py-3 rounded-xl font-mono text-xs sm:text-sm text-blue-600 overflow-x-auto shadow-sm border border-blue-200">
-                {exampleUrl}
-              </code>
-            </div>
-          </div>
-        </div>
-
-        {clickSource.kind === "owner" && typeof window !== "undefined" && (
-          <TrackingQrCode
-            baseUrl={window.location.origin}
-            brandSlug={brandSlug}
-            projectSlug={projectSlug}
-            shortCode={link.short_code}
-            includeSubmissionInUrl={includeSub}
-            fileNamePrefix={getExportFilenamePrefix()}
-          />
-        )}
-
-        <AnalyticsFiltersBar
+        <AnalyticsToolbar
+          range={rangeState}
           filters={clickFilters}
-          options={filterOptions}
+          filterOptions={filterOptions}
           onFilterChange={updateClickFilter}
-          onClear={clearClickFilters}
-          hasActive={hasActiveFilters(clickFilters)}
-          totalUnfiltered={allClicks.length}
-          totalFiltered={filteredClicks.length}
-          viewMode={analyticsViewMode}
-          onViewModeChange={setAnalyticsViewMode}
+          onClearFilters={clearClickFilters}
+          hideBots={hideBots}
+          onHideBotsChange={setHideBots}
+          traffic={trafficSummary}
+          idPrefix="link-analytics"
         />
 
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 sm:p-5 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <p className="text-sm text-slate-600">
-              <span className="font-semibold text-slate-800">{dateRangeLabel}</span>
-              {" · "}
-              {data.totalClicks.toLocaleString()} clicks in range
-            </p>
-          </div>
-          <AnalyticsDateRangePicker
-            preset={rangePreset}
-            startDate={startDate}
-            endDate={endDate}
-            onPresetChange={applyPreset}
-            onStartDateChange={handleStartDateChange}
-            onEndDateChange={handleEndDateChange}
-            minDate={allTimeRange.startDate}
-            maxDate={allTimeRange.endDate}
+        {loadError ? (
+          <ErrorState
+            title="Couldn't load click data"
+            message={loadError}
+            onRetry={loadAnalytics}
           />
-        </div>
-
-        {analyticsViewMode === "map" ? (
-          <GeoInsightsPanelClient clicks={dateFilteredClicks} />
+        ) : allClicks.length === 0 ? (
+          <div className="space-y-6">
+            <EmptyState
+              icon={MousePointerClick}
+              title="No clicks yet"
+              description="Share this link's tracking URL with creators. Clicks show up here within seconds."
+              action={
+                trackingUrlTemplate ? (
+                  <CopyButton text={trackingUrlTemplate} label="Copy tracking URL" variant="primary" size="md" />
+                ) : undefined
+              }
+            />
+            {setupPanel}
+          </div>
         ) : (
           <>
-            <ClicksAnalyticsChart
-              weeklyData={data.clicksByWeek}
-              startDate={startDate}
-              endDate={endDate}
-              totalClicksInRange={data.totalClicks}
+            <div className="mb-6 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+              <StatCard
+                label={hideBots ? "Genuine clicks" : "Total clicks"}
+                value={data.totalClicks}
+                icon={MousePointerClick}
+                iconBg="bg-primary-50"
+                iconColor="text-primary-600"
+                sublabel={
+                  hideBots
+                    ? `of ${formatNumber(trafficSummary.total)} incl. bots`
+                    : `${formatNumber(humanInRange)} genuine`
+                }
+              />
+              <StatCard
+                label="Unique visitors"
+                value={data.uniqueVisitors}
+                icon={UserCheck}
+                iconBg="bg-emerald-50"
+                iconColor="text-emerald-600"
+                sublabel={
+                  data.totalClicks
+                    ? `${(data.totalClicks / Math.max(data.uniqueVisitors, 1)).toFixed(1)} clicks each`
+                    : undefined
+                }
+              />
+              <StatCard
+                label="Top creator"
+                value={topCreator ? topCreator[0] : "—"}
+                icon={Users}
+                iconBg="bg-amber-50"
+                iconColor="text-amber-600"
+                sublabel={topCreator ? `${formatNumber(topCreator[1])} clicks` : undefined}
+              />
+              <StatCard
+                label="Top city"
+                value={topCity ? topCity[0] : "—"}
+                icon={MapPin}
+                iconBg="bg-sky-50"
+                iconColor="text-sky-600"
+                sublabel={topCity ? `${formatNumber(topCity[1])} clicks` : undefined}
+              />
+            </div>
+
+            <Tabs
+              tabs={tabs}
+              value={activeTab}
+              onChange={setActiveTab}
+              idPrefix="link-analytics"
+              label="Analytics sections"
+              className="mb-5"
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              <StatsCard
-                title="Clicks by Link Title"
-                data={data.clicksByLinkTitle}
-                color="blue"
+            <TabPanel id="overview" active={activeTab} idPrefix="link-analytics" className="space-y-4">
+              <ClicksAnalyticsChart
+                weeklyData={data.clicksByWeek}
+                startDate={startDate}
+                endDate={endDate}
+                totalClicksInRange={data.totalClicks}
               />
-              <StatsCard
-                title="Clicks by Creator"
-                data={data.clicksByCreator}
-                color="emerald"
-              />
-              <StatsCard
-                title="Clicks by Submission"
-                data={data.clicksBySubmission}
-                color="orange"
-              />
-              <StatsCard
-                title="Clicks by Country"
-                data={data.clicksByCountry}
-                color="cyan"
-              />
-              <StatsCard
-                title="Clicks by State"
-                data={data.clicksByState}
-                color="amber"
-              />
-              <StatsCard
-                title="Clicks by City"
-                data={data.clicksByCity}
-                color="violet"
-              />
-              <StatsCard
-                title="Clicks by Device"
-                data={data.clicksByDevice}
-                color="green"
-              />
-              <StatsCard
-                title="Clicks by Browser"
-                data={data.clicksByBrowser}
-                color="slate"
-              />
-              <StatsCard
-                title="Clicks by OS"
-                data={data.clicksByOs}
-                color="cyan"
-              />
-              <StatsCard
-                title="Clicks by Referrer"
-                data={data.clicksByReferrer}
-                color="blue"
-              />
-            </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <BreakdownCard
+                  title="Top creators"
+                  data={data.clicksByCreator}
+                  icon={Users}
+                  limit={5}
+                  expandable={sortedCreatorRows.length <= 5}
+                  footer={
+                    sortedCreatorRows.length > 5 ? (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("creators")}
+                        className="mt-3 self-start text-sm font-medium text-primary-700 hover:text-primary-800"
+                      >
+                        All {formatNumber(sortedCreatorRows.length)} creators →
+                      </button>
+                    ) : undefined
+                  }
+                />
+                <BreakdownCard title="Top cities" data={data.clicksByCity} icon={MapPin} limit={5} />
+                <TrafficQualityCard summary={trafficSummary} />
+              </div>
+            </TabPanel>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6 overflow-hidden">
-          <div className="flex items-center gap-3 mb-4 sm:mb-6">
-            <div className="p-2 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg">
-              <Users className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                Recent Clicks by Creator
-              </h3>
-              <p className="text-xs text-slate-600">
-                Overview of creator activity
-              </p>
-            </div>
-          </div>
-          {data.filteredClicks.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full mb-4">
-                <MousePointerClick className="w-8 h-8 text-slate-400" />
-              </div>
-              <p className="text-sm sm:text-base text-slate-600 font-medium">
-                {allClicks.length === 0
-                  ? "No clicks recorded yet"
-                  : "No clicks match the current filters"}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                {allClicks.length === 0
-                  ? "Start sharing your tracking links to see analytics"
-                  : "Try adjusting or clearing your filters"}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0 max-h-[500px] overflow-y-auto">
-              <div className="inline-block min-w-full align-middle">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
-                      {(
-                        [
-                          {
-                            key: "lastClick" as const,
-                            label: "Last Click",
-                          },
-                          { key: "creator" as const, label: "Creator" },
-                          { key: "country" as const, label: "Country" },
-                          { key: "state" as const, label: "State" },
-                          { key: "city" as const, label: "City" },
-                          {
-                            key: "totalClicks" as const,
-                            label: "Total Clicks",
-                          },
-                          {
-                            key: "totalSubmissions" as const,
-                            label: "Total Submissions",
-                          },
-                        ] as const
-                      ).map(({ key, label }) => {
-                        const isActive = creatorTableSort.column === key;
-                        const SortIcon = isActive
-                          ? creatorTableSort.direction === "asc"
-                            ? ArrowUp
-                            : ArrowDown
-                          : ArrowUpDown;
-                        return (
-                          <th
-                            key={key}
-                            aria-sort={
-                              isActive
-                                ? creatorTableSort.direction === "asc"
-                                  ? "ascending"
-                                  : "descending"
-                                : "none"
-                            }
-                            className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleCreatorTableSort(key)}
-                              className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors group/sort"
-                            >
-                              {label}
-                              <SortIcon
-                                className={`w-3.5 h-3.5 flex-shrink-0 ${
-                                  isActive
-                                    ? "text-blue-600"
-                                    : "text-slate-400"
-                                }`}
-                              />
-                            </button>
-                          </th>
-                        );
-                      })}
-                      <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedCreatorRows.map((creator) => (
-                        <tr
-                          key={creator.username}
-                          className="border-b border-slate-100 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 group"
-                        >
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-600 whitespace-nowrap font-medium">
-                            {creator.lastClick ? (
-                              new Date(creator.lastClick).toLocaleDateString(
-                                "en-GB"
-                              )
-                            ) : (
-                              <span className="text-red-500">No timestamp</span>
-                            )}
-                          </td>
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap font-semibold">
-                            <div className="flex items-center gap-2">
-                              {/* <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
-                                {creator.username.charAt(0).toUpperCase()}
-                              </div> */}
-                              <span>{creator.username}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap">
-                            {renderCreatorLocationCell(creator.countries)}
-                          </td>
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap">
-                            {renderCreatorLocationCell(creator.states)}
-                          </td>
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap">
-                            {renderCreatorLocationCell(creator.cities)}
-                          </td>
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap">
-                            <span className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 rounded-full font-bold shadow-sm">
-                              {creator.totalClicks}
-                            </span>
-                          </td>
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap">
-                            {creator.submissions.size > 0 ? (
-                              <span className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 text-purple-700 rounded-full text-xs font-bold shadow-sm">
-                                {creator.submissions.size}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">-</span>
-                            )}
-                          </td>
-                          <td className="py-3 sm:py-4 px-3 sm:px-4 whitespace-nowrap">
-                            <button
-                              onClick={() =>
-                                loadCreatorAnalytics(creator.username)
-                              }
-                              className="inline-flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg group-hover:scale-105"
-                              title={`View detailed analytics for ${creator.username}`}
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>View</span>
-                            </button>
-                          </td>
-                        </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
+            <TabPanel id="creators" active={activeTab} idPrefix="link-analytics">
+              <CreatorTable
+                rows={sortedCreatorRows}
+                sort={creatorTableSort}
+                onSort={handleCreatorTableSort}
+                onOpenCreator={loadCreatorAnalytics}
+              />
+            </TabPanel>
+
+            <TabPanel
+              id="audience"
+              active={activeTab}
+              idPrefix="link-analytics"
+              className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+            >
+              <BreakdownCard title="Countries" data={data.clicksByCountry} icon={Globe2} />
+              <BreakdownCard title="States" data={data.clicksByState} icon={MapPin} />
+              <BreakdownCard title="Cities" data={data.clicksByCity} icon={Building2} />
+              <BreakdownCard title="Devices" data={data.clicksByDevice} icon={Smartphone} />
+              <BreakdownCard title="Operating systems" data={data.clicksByOs} icon={Monitor} />
+              <BreakdownCard title="Browsers" data={data.clicksByBrowser} icon={AppWindow} />
+              <BreakdownCard title="Referrers" data={data.clicksByReferrer} icon={Share2} />
+              <BreakdownCard title="Submissions" data={data.clicksBySubmission} icon={Hash} order="natural" />
+            </TabPanel>
+
+            <TabPanel id="map" active={activeTab} idPrefix="link-analytics">
+              <GeoInsightsPanelClient clicks={dateFilteredClicks} />
+            </TabPanel>
+
+            <TabPanel id="setup" active={activeTab} idPrefix="link-analytics">
+              {setupPanel}
+            </TabPanel>
           </>
         )}
-      </div>
+      </main>
 
-      {/* Creator Analytics Modal */}
-      {selectedCreator && creatorAnalytics && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div
-            className="clickable-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => {
-              setSelectedCreator(null);
-              setCreatorRawClicks(null);
-            }}
-          />
-          <div className="relative z-10 w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-            <div className="top-0 bg-gradient-to-r from-white to-blue-50/30 border-b border-slate-200 p-4 sm:p-6 z-10 backdrop-blur-sm">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  {/* <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                    {selectedCreator.charAt(0).toUpperCase()}
-                  </div> */}
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                      Analytics for {selectedCreator}
-                    </h2>
-                    <p className="text-sm text-slate-600 mt-0.5">
-                      Detailed analytics for this creator&apos;s activity
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedCreator(null);
-                    setCreatorRawClicks(null);
-                  }}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-xl transition-all duration-200 hover:shadow-md"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <AnalyticsFiltersBar
-                filters={creatorModalFilters}
-                options={creatorModalFilterOptions}
-                onFilterChange={updateCreatorModalFilter}
-                onClear={() => setCreatorModalFilters(DEFAULT_CLICK_FILTERS)}
-                hasActive={hasActiveFilters(creatorModalFilters)}
-                totalUnfiltered={creatorAnalytics.clicks.length}
-                totalFiltered={creatorModalFilteredClicks.length}
-                compact
-              />
-            </div>
-
-            <div className="p-4 sm:p-6">
-              {(() => {
-                const filteredClicks = creatorModalFilteredClicks;
-
-                // Calculate filtered analytics
-                const filteredAnalytics = {
-                  totalClicks: filteredClicks.length,
-                  clicksBySubmission: {} as Record<string, number>,
-                  clicksByCountry: {} as Record<string, number>,
-                  clicksByState: {} as Record<string, number>,
-                  clicksByCity: {} as Record<string, number>,
-                  clicksByDevice: {} as Record<string, number>,
-                  clicksByBrowser: {} as Record<string, number>,
-                };
-
-                filteredClicks.forEach((click) => {
-                  if (click.submission_number) {
-                    filteredAnalytics.clicksBySubmission[
-                      click.submission_number
-                    ] =
-                      (filteredAnalytics.clicksBySubmission[
-                        click.submission_number
-                      ] || 0) + 1;
-                  }
-                  if (click.country) {
-                    filteredAnalytics.clicksByCountry[click.country] =
-                      (filteredAnalytics.clicksByCountry[click.country] || 0) +
-                      1;
-                  }
-                  if (click.state) {
-                    filteredAnalytics.clicksByState[click.state] =
-                      (filteredAnalytics.clicksByState[click.state] || 0) + 1;
-                  }
-                  if (click.city) {
-                    filteredAnalytics.clicksByCity[click.city] =
-                      (filteredAnalytics.clicksByCity[click.city] || 0) + 1;
-                  }
-                  if (click.device_type) {
-                    filteredAnalytics.clicksByDevice[click.device_type] =
-                      (filteredAnalytics.clicksByDevice[click.device_type] ||
-                        0) + 1;
-                  }
-                  if (click.browser) {
-                    filteredAnalytics.clicksByBrowser[click.browser] =
-                      (filteredAnalytics.clicksByBrowser[click.browser] || 0) +
-                      1;
-                  }
-                });
-
-                return (
-                  <>
-                    {/* Summary Stats - Filtered based on selected submission */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-slate-600 mb-1 font-medium">
-                              Total Clicks
-                            </p>
-                            <p className="text-2xl font-bold text-slate-900">
-                              {filteredAnalytics.totalClicks}
-                            </p>
-                          </div>
-                          <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                            <MousePointerClick className="w-5 h-5 text-blue-600" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-slate-600 mb-1 font-medium">
-                              Browsers
-                            </p>
-                            <p className="text-2xl font-bold text-slate-900">
-                              {
-                                Object.keys(filteredAnalytics.clicksByBrowser)
-                                  .length
-                              }
-                            </p>
-                          </div>
-                          <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
-                            <Monitor className="w-5 h-5 text-emerald-600" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-slate-600 mb-1 font-medium">
-                              Submissions
-                            </p>
-                            <p className="text-2xl font-bold text-slate-900">
-                              {
-                                Object.keys(
-                                  filteredAnalytics.clicksBySubmission
-                                ).length
-                              }
-                            </p>
-                          </div>
-                          <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
-                            <Monitor className="w-5 h-5 text-orange-600" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-slate-600 mb-1 font-medium">
-                              Devices
-                            </p>
-                            <p className="text-2xl font-bold text-slate-900">
-                              {
-                                Object.keys(filteredAnalytics.clicksByDevice)
-                                  .length
-                              }
-                            </p>
-                          </div>
-                          <div className="w-10 h-10 bg-cyan-50 rounded-lg flex items-center justify-center">
-                            <Monitor className="w-5 h-5 text-cyan-600" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Detailed Stats - Filtered based on selected submission */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                      <StatsCard
-                        title="Clicks by Submission"
-                        data={filteredAnalytics.clicksBySubmission}
-                        color="orange"
-                      />
-                      <StatsCard
-                        title="Clicks by Country"
-                        data={filteredAnalytics.clicksByCountry}
-                        color="cyan"
-                      />
-                      <StatsCard
-                        title="Clicks by State"
-                        data={filteredAnalytics.clicksByState}
-                        color="amber"
-                      />
-                      <StatsCard
-                        title="Clicks by City"
-                        data={filteredAnalytics.clicksByCity}
-                        color="violet"
-                      />
-                      <StatsCard
-                        title="Clicks by Device"
-                        data={filteredAnalytics.clicksByDevice}
-                        color="green"
-                      />
-                      <StatsCard
-                        title="Clicks by Browser"
-                        data={filteredAnalytics.clicksByBrowser}
-                        color="slate"
-                      />
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* Clicks Table */}
-              {(() => {
-                const filteredClicks = creatorModalFilteredClicks;
-
-                return (
-                  <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6">
-                    <div className="flex items-center gap-3 mb-4 sm:mb-5">
-                      <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
-                        <Eye className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                          {hasActiveFilters(creatorModalFilters)
-                            ? "Filtered Clicks"
-                            : "All Clicks"}
-                        </h3>
-                        <p className="text-xs text-slate-600">
-                          Detailed click information
-                        </p>
-                      </div>
-                    </div>
-                    {filteredClicks.length === 0 ? (
-                      <div className="text-center py-12">
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full mb-4">
-                          <MousePointerClick className="w-8 h-8 text-slate-400" />
-                        </div>
-                        <p className="text-sm sm:text-base text-slate-600 font-medium">
-                          No clicks recorded for this filter
-                        </p>
-                      </div>
-                    ) : creatorModalFilters.submission === FILTER_ALL ? (
-                      // Single table when not filtering by a specific submission
-                      <div className="overflow-x-auto -mx-4 sm:mx-0 rounded-xl max-h-[500px] overflow-y-auto">
-                        <div className="inline-block min-w-full align-middle">
-                          <table className="min-w-full">
-                            <thead>
-                              <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
-                                <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                  Date
-                                </th>
-                                <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                  Submission
-                                </th>
-                                <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                  Country
-                                </th>
-                                <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                  Device
-                                </th>
-                                <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                  Browser
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {filteredClicks
-                                .sort((a, b) => {
-                                  // Sort by time (most recent first)
-                                  if (!a.clicked_at) return 1;
-                                  if (!b.clicked_at) return -1;
-                                  return (
-                                    new Date(b.clicked_at).getTime() -
-                                    new Date(a.clicked_at).getTime()
-                                  );
-                                })
-                                .map((click) => (
-                                  <tr
-                                    key={click.id}
-                                    className="border-b border-slate-100 hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-transparent transition-all duration-200"
-                                  >
-                                    <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap">
-                                      {click.clicked_at ? (
-                                        <div className="text-black">
-                                          {new Date(
-                                            click.clicked_at
-                                          ).toLocaleDateString("en-GB")}
-                                        </div>
-                                      ) : (
-                                        <span className="text-red-500 font-medium">
-                                          No timestamp
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap">
-                                      <span className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-orange-100 to-orange-200 text-orange-700 rounded-full text-xs font-bold shadow-sm">
-                                        {click.submission_number || "-"}
-                                      </span>
-                                    </td>
-                                    <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap font-medium">
-                                      {click.country || (
-                                        <span className="text-slate-400">
-                                          -
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap font-medium">
-                                      {click.device_type || (
-                                        <span className="text-slate-400">
-                                          -
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap font-medium">
-                                      {click.browser || (
-                                        <span className="text-slate-400">
-                                          -
-                                        </span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        {(() => {
-                          // Group clicks by submission number
-                          const submissionMap = new Map<string, LinkClick[]>();
-
-                          filteredClicks.forEach((click) => {
-                            const submission =
-                              click.submission_number || "No Submission";
-                            if (!submissionMap.has(submission)) {
-                              submissionMap.set(submission, []);
-                            }
-                            submissionMap.get(submission)!.push(click);
-                          });
-
-                          // Sort submissions - numeric ones first in ascending order, then others
-                          const sortedSubmissions = Array.from(
-                            submissionMap.entries()
-                          ).sort((a, b) => {
-                            const aIsNumeric = !isNaN(Number(a[0]));
-                            const bIsNumeric = !isNaN(Number(b[0]));
-
-                            if (aIsNumeric && bIsNumeric) {
-                              return Number(a[0]) - Number(b[0]);
-                            }
-                            if (aIsNumeric) return -1;
-                            if (bIsNumeric) return 1;
-                            return a[0].localeCompare(b[0]);
-                          });
-
-                          return sortedSubmissions.map(
-                            ([submission, clicks]) => (
-                              <div
-                                key={submission}
-                                className="border-2 border-slate-200 rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300"
-                              >
-                                <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 sm:px-5 py-3 sm:py-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                                        <span className="text-white font-bold text-sm">
-                                          {submission}
-                                        </span>
-                                      </div>
-                                      <h4 className="text-base font-bold text-white">
-                                        Submission: {submission}
-                                      </h4>
-                                    </div>
-                                    <span className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-sm font-bold shadow-lg">
-                                      {clicks.length}{" "}
-                                      {clicks.length === 1 ? "click" : "clicks"}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="overflow-x-auto">
-                                  <table className="min-w-full bg-white">
-                                    <thead>
-                                      <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
-                                        <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                          Date
-                                        </th>
-                                        <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                          Country
-                                        </th>
-                                        <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                          Device
-                                        </th>
-                                        <th className="text-left py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm font-bold text-slate-700 whitespace-nowrap">
-                                          Browser
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {clicks
-                                        .sort((a, b) => {
-                                          // Sort clicks within submission by time (most recent first)
-                                          if (!a.clicked_at) return 1;
-                                          if (!b.clicked_at) return -1;
-                                          return (
-                                            new Date(b.clicked_at).getTime() -
-                                            new Date(a.clicked_at).getTime()
-                                          );
-                                        })
-                                        .map((click) => (
-                                          <tr
-                                            key={click.id}
-                                            className="border-b border-slate-100 hover:bg-gradient-to-r hover:from-orange-50/50 hover:to-transparent transition-all duration-200"
-                                          >
-                                            <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-600 whitespace-nowrap">
-                                              {click.clicked_at ? (
-                                                <div className="text-slate-900">
-                                                  {new Date(
-                                                    click.clicked_at
-                                                  ).toLocaleDateString("en-GB")}
-                                                </div>
-                                              ) : (
-                                                <span className="text-red-500 font-medium">
-                                                  No timestamp
-                                                </span>
-                                              )}
-                                            </td>
-                                            <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap font-medium">
-                                              {click.country || (
-                                                <span className="text-slate-400">
-                                                  -
-                                                </span>
-                                              )}
-                                            </td>
-                                            <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap font-medium">
-                                              {click.device_type || (
-                                                <span className="text-slate-400">
-                                                  -
-                                                </span>
-                                              )}
-                                            </td>
-                                            <td className="py-3 sm:py-4 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 whitespace-nowrap font-medium">
-                                              {click.browser || (
-                                                <span className="text-slate-400">
-                                                  -
-                                                </span>
-                                              )}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            )
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
+      <CreatorDetailDialog
+        username={selectedCreator}
+        clicks={creatorModalFilteredClicks}
+        filters={creatorModalFilters}
+        filterOptions={creatorModalFilterOptions}
+        onFilterChange={updateCreatorModalFilter}
+        onClearFilters={() => setCreatorModalFilters(DEFAULT_CLICK_FILTERS)}
+        onClose={() => {
+          setSelectedCreator(null);
+          setCreatorRawClicks(null);
+        }}
+      />
     </div>
   );
 }

@@ -104,7 +104,7 @@ export function Dialog({
               />
             )}
           </div>
-          <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">{children}</div>
+          <div className="overflow-y-auto px-4 sm:px-6 py-4 sm:py-5" tabIndex={-1}>{children}</div>
           {footer && (
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-slate-200 px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               {footer}
