@@ -99,9 +99,9 @@ function PrimaryCta({
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 mb-4">
+    <p className={`text-xs font-semibold uppercase tracking-[0.2em] mb-4 ${dark ? "text-cyan-400" : "text-cyan-700"}`}>
       {children}
     </p>
   );
@@ -416,7 +416,7 @@ export function LinktoLanding() {
       <section id="use-cases" className="py-20 sm:py-28 bg-[#0a0a0f] text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <SectionLabel>Use cases</SectionLabel>
+            <SectionLabel dark>Use cases</SectionLabel>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
               Built for how teams actually run creator campaigns
             </h2>
