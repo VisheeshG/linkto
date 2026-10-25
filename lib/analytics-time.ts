@@ -1,9 +1,18 @@
-// All analytics dates are bucketed in one fixed time zone so every viewer
-// (owner, client, teammate abroad) sees the same daily numbers.
-// Configure with NEXT_PUBLIC_ANALYTICS_TIME_ZONE (IANA name); defaults to IST.
+// Analytics dates are bucketed in the viewer's own time zone (from their
+// browser), so "today" and the daily chart match the viewer's clock.
+// Set NEXT_PUBLIC_ANALYTICS_TIME_ZONE (IANA name, e.g. "Asia/Kolkata") to force
+// one zone for every viewer instead.
 
-export const ANALYTICS_TIME_ZONE =
-  process.env.NEXT_PUBLIC_ANALYTICS_TIME_ZONE || "Asia/Kolkata";
+/** The time zone analytics are bucketed in for this viewer. */
+export function getAnalyticsTimeZone(): string {
+  const configured = process.env.NEXT_PUBLIC_ANALYTICS_TIME_ZONE;
+  if (configured) return configured;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
 
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
 
@@ -34,7 +43,7 @@ function getFormatter(timeZone: string): Intl.DateTimeFormat {
 /** "YYYY-MM-DD" of an instant in the analytics time zone. */
 export function toAnalyticsDateKey(
   instant: Date | string,
-  timeZone: string = ANALYTICS_TIME_ZONE
+  timeZone: string = getAnalyticsTimeZone()
 ): string {
   const date = typeof instant === "string" ? new Date(instant) : instant;
   const parts = getFormatter(timeZone).formatToParts(date);

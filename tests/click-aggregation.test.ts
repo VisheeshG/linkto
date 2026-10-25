@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { LinkClick } from "@/lib/supabase";
 import {
   aggregateClicks,
@@ -9,7 +9,7 @@ import {
   referrerLabel,
   summarizeTraffic,
 } from "@/lib/click-aggregation";
-import { toAnalyticsDateKey } from "@/lib/analytics-time";
+import { getAnalyticsTimeZone, toAnalyticsDateKey } from "@/lib/analytics-time";
 
 function click(overrides: Partial<LinkClick>): LinkClick {
   return {
@@ -33,14 +33,28 @@ function click(overrides: Partial<LinkClick>): LinkClick {
 }
 
 describe("analytics time zone", () => {
-  it("buckets clicks by the analytics time zone, not UTC", () => {
-    // 20:00 UTC is 01:30 the next day in IST (the default zone).
-    expect(getClickDateKey({ clicked_at: "2026-10-20T20:00:00Z" })).toBe("2026-10-21");
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_ANALYTICS_TIME_ZONE;
+  });
+
+  it("buckets an instant by calendar day in the given zone", () => {
+    // 20:00 UTC is 01:30 the next day in IST, still the same day in New York.
+    expect(toAnalyticsDateKey("2026-10-20T20:00:00Z", "Asia/Kolkata")).toBe("2026-10-21");
     expect(toAnalyticsDateKey("2026-10-20T20:00:00Z", "UTC")).toBe("2026-10-20");
     expect(toAnalyticsDateKey("2026-10-20T20:00:00Z", "America/New_York")).toBe("2026-10-20");
   });
 
-  it("filters date ranges using the same buckets", () => {
+  it("defaults to the viewer's own time zone", () => {
+    const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    expect(getAnalyticsTimeZone()).toBe(viewerZone);
+    expect(getClickDateKey({ clicked_at: "2026-10-20T20:00:00Z" })).toBe(
+      toAnalyticsDateKey("2026-10-20T20:00:00Z", viewerZone)
+    );
+  });
+
+  it("can be pinned to one zone for every viewer", () => {
+    process.env.NEXT_PUBLIC_ANALYTICS_TIME_ZONE = "Asia/Kolkata";
+    expect(getAnalyticsTimeZone()).toBe("Asia/Kolkata");
     const clicks = [
       click({ clicked_at: "2026-10-20T20:00:00Z" }),
       click({ clicked_at: "2026-10-20T10:00:00Z" }),

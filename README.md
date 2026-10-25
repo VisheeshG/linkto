@@ -28,7 +28,7 @@ A comprehensive link tracking platform built with Next.js and Supabase that enab
    IP_API_KEY=                     # recommended in production (ip-api.com Pro)
    PROJECT_ACCESS_SECRET=          # recommended: random secret
    VISITOR_HASH_SALT=              # recommended: random secret
-   NEXT_PUBLIC_ANALYTICS_TIME_ZONE=Asia/Kolkata
+   NEXT_PUBLIC_ANALYTICS_TIME_ZONE=    # optional: leave empty to use each viewer's time zone
    ```
 
    `SUPABASE_SERVICE_ROLE_KEY` is **required**: tracking redirects record
