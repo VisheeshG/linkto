@@ -62,6 +62,8 @@ import {
   useAnalyticsDateRange,
 } from "@/hooks/useAnalyticsDateRange";
 import jsPDF from "jspdf";
+import toast from "react-hot-toast";
+import { describeError } from "@/lib/describe-error";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
@@ -140,6 +142,10 @@ export function Analytics({
       setAllClicks(clicks);
     } catch (error) {
       console.error("Error loading analytics:", error);
+      toast.error(
+        `Couldn't load click data: ${describeError(error)}`,
+        { id: "analytics-load-error", duration: 8000 }
+      );
     } finally {
       setLoading(false);
     }
@@ -652,6 +658,10 @@ export function Analytics({
       setCreatorModalFilters(DEFAULT_CLICK_FILTERS);
     } catch (error) {
       console.error("Error loading creator analytics:", error);
+      toast.error(
+        `Couldn't load creator clicks: ${describeError(error)}`,
+        { id: "creator-load-error", duration: 8000 }
+      );
     }
   };
 

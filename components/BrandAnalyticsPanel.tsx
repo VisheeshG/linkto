@@ -41,6 +41,7 @@ import {
   Share2,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { describeError } from "@/lib/describe-error";
 import { buildTrackingUrlTemplate } from "@/lib/tracking-url";
 
 interface BrandAnalyticsPanelProps {
@@ -702,6 +703,10 @@ export function BrandAnalyticsPanel({
       setClicks(clicksData);
     } catch (error) {
       console.error("Error loading brand analytics:", error);
+      toast.error(
+        `Couldn't load click data: ${describeError(error)}`,
+        { id: "brand-analytics-load-error", duration: 8000 }
+      );
     } finally {
       setLoading(false);
     }
