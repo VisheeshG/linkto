@@ -453,8 +453,8 @@ export function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-            <div className="flex items-center space-x-3 sm:space-x-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-900 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg p-1.5 sm:p-2">
                 <BrandLogo
                   size={48}
@@ -469,17 +469,18 @@ export function Dashboard() {
                 <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
                   Branded links. Creator-level clarity.
                 </p>
-                <p className="text-xs sm:text-sm text-slate-600 truncate max-w-[200px] sm:max-w-none mt-0.5">
+                <p className="text-xs sm:text-sm text-slate-600 truncate mt-0.5">
                   {user?.email}
                 </p>
               </div>
             </div>
             <button
               onClick={signOut}
-              className="group flex items-center space-x-2 px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base text-slate-700 hover:text-red-600 bg-slate-100 hover:bg-red-50 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+              aria-label="Sign out"
+              className="group shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base text-slate-700 hover:text-red-600 bg-slate-100 hover:bg-red-50 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-md"
             >
               <LogOut className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-              <span>Sign Out</span>
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>
@@ -503,17 +504,17 @@ export function Dashboard() {
               Organize campaigns by brand
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
             <button
               onClick={() => setShowNewBrand(true)}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-5 py-3 rounded-xl transition-all font-semibold shadow-lg w-full sm:w-auto"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl transition-all font-semibold shadow-lg w-full sm:w-auto"
             >
               <Briefcase className="w-5 h-5" />
               <span>New Brand</span>
             </button>
             <button
               onClick={() => setShowNewProject(true)}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-3 rounded-xl transition-all font-semibold shadow-lg w-full sm:w-auto"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl transition-all font-semibold shadow-lg w-full sm:w-auto"
             >
               <Plus className="w-5 h-5" />
               <span>New Project</span>

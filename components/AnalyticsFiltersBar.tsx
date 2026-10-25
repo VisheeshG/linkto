@@ -125,7 +125,7 @@ export function AnalyticsFiltersBar({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-3">
         {filterFields.map(({ key, label, values, disabled }) => (
           <div key={key}>
             <label
@@ -141,9 +141,7 @@ export function AnalyticsFiltersBar({
               onChange={(e) => onFilterChange(key, e.target.value)}
               className={`${selectClass} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              <option value={FILTER_ALL}>
-                All {label}s
-              </option>
+              <option value={FILTER_ALL}>All</option>
               {values.map((value) => (
                 <option key={value} value={value}>
                   {value}

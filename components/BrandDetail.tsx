@@ -373,7 +373,7 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50">
-      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-40 shadow-sm">
+      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 shadow-sm">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4">
           <button
             onClick={() => router.push("/dashboard")}

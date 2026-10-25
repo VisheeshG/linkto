@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import dayjs from "dayjs";
 import { useState, useEffect } from "react";
@@ -34,6 +33,37 @@ function formatNumber(num: number): string {
     return `${(num / 1000).toFixed(2)}K`;
   }
   return num.toString();
+}
+
+type ChartPoint = { label: string; tooltipLabel: string; clicks: number };
+
+/**
+ * Long ranges are grouped so bars stay readable: daily up to ~2 months,
+ * weekly up to ~1 year, then 30-day buckets.
+ */
+function bucketDays(days: { week: string; clicks: number }[]): {
+  points: ChartPoint[];
+  unit: "day" | "week" | "month";
+} {
+  const size = days.length <= 62 ? 1 : days.length <= 400 ? 7 : 30;
+  if (size === 1) {
+    return {
+      points: days.map((d) => ({ label: d.week, tooltipLabel: d.week, clicks: d.clicks })),
+      unit: "day",
+    };
+  }
+  const points: ChartPoint[] = [];
+  for (let i = 0; i < days.length; i += size) {
+    const chunk = days.slice(i, i + size);
+    const first = chunk[0].week;
+    const last = chunk[chunk.length - 1].week;
+    points.push({
+      label: first,
+      tooltipLabel: first === last ? first : `${first} – ${last}`,
+      clicks: chunk.reduce((sum, d) => sum + d.clicks, 0),
+    });
+  }
+  return { points, unit: size === 7 ? "week" : "month" };
 }
 
 // Format with commas for display
@@ -66,31 +96,12 @@ export function ClicksAnalyticsChart({
     totalClicksInRange ??
     weeklyData.reduce((sum, day) => sum + day.clicks, 0);
 
-  // Responsive chart configuration based on window width
-  const getChartConfig = () => {
-    const isMobile = windowWidth < 640;
-    const isTablet = windowWidth >= 640 && windowWidth < 1024;
-
-    return {
-      margin: {
-        top: 5,
-        right: isMobile ? 5 : isTablet ? 20 : 30,
-        left: isMobile ? -10 : isTablet ? -5 : 0,
-        bottom: 5,
-      },
-      fontSize: isMobile ? "0.625rem" : isTablet ? "0.7rem" : "0.75rem",
-      yAxisWidth: isMobile ? 30 : isTablet ? 40 : 50,
-      xAxisHeight: weeklyData.length > 7 ? (isMobile ? 60 : 80) : 30,
-      xAxisInterval: isMobile && weeklyData.length > 10 ? 1 : 0,
-      barSize: isMobile ? 20 : windowWidth < 768 ? 30 : isTablet ? 35 : 40,
-      tooltipFontSize: isMobile ? "0.75rem" : "0.875rem",
-      legendFontSize: isMobile ? "0.75rem" : "0.875rem",
-      legendIconSize: isMobile ? 8 : 10,
-      legendPaddingTop: isMobile ? "8px" : "10px",
-    };
-  };
-
-  const chartConfig = getChartConfig();
+  const isMobile = windowWidth < 640;
+  const { points, unit } = bucketDays(weeklyData);
+  // Bars size themselves to the card; only very dense charts on phones scroll
+  // horizontally (keeping each bar slot at least ~7px wide).
+  const minChartWidth = isMobile ? points.length * 7 : 0;
+  const fontSize = isMobile ? "0.625rem" : "0.75rem";
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6 mb-6 sm:mb-8">
@@ -107,6 +118,7 @@ export function ClicksAnalyticsChart({
               {`${dayjs(startDate).format("MMM D, YYYY")} - ${dayjs(
                 endDate
               ).format("MMM D, YYYY")}`}
+              {unit !== "day" && ` · ${unit === "week" ? "weekly" : "monthly"} totals`}
             </p>
           </div>
         </div>
@@ -132,63 +144,54 @@ export function ClicksAnalyticsChart({
         </div>
       </div>
 
-      <div className="w-full h-48 sm:h-64 md:h-72 lg:h-80 xl:h-96 overflow-x-auto overflow-y-hidden">
-        <div
-          style={{
-            minWidth: `${Math.max(
-              weeklyData.length * (chartConfig.barSize + 20),
-              windowWidth < 640 ? 320 : 600
-            )}px`,
-            height: "100%",
-          }}
-        >
+      <div className="w-full h-56 sm:h-64 lg:h-72 overflow-x-auto overflow-y-hidden">
+        <div style={{ minWidth: minChartWidth ? `${minChartWidth}px` : undefined, height: "100%" }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyData} margin={chartConfig.margin}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <BarChart
+              data={points}
+              margin={{ top: 8, right: isMobile ? 4 : 12, left: isMobile ? -16 : -8, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
               <XAxis
-                dataKey="week"
+                dataKey="label"
                 stroke="#64748b"
-                style={{ fontSize: chartConfig.fontSize }}
-                angle={weeklyData.length > 7 ? -45 : 0}
-                textAnchor={weeklyData.length > 7 ? "end" : "middle"}
-                height={chartConfig.xAxisHeight}
-                interval={0}
+                style={{ fontSize }}
+                tickLine={false}
+                interval="preserveStartEnd"
+                minTickGap={isMobile ? 16 : 24}
               />
               <YAxis
                 stroke="#64748b"
-                style={{ fontSize: chartConfig.fontSize }}
+                style={{ fontSize }}
                 allowDecimals={false}
-                width={chartConfig.yAxisWidth}
+                width={isMobile ? 36 : 48}
+                tickLine={false}
                 tickFormatter={formatNumber}
               />
               <Tooltip
+                cursor={{ fill: "rgba(99, 102, 241, 0.08)" }}
                 contentStyle={{
                   backgroundColor: "#fff",
                   border: "1px solid #e2e8f0",
                   borderRadius: "0.5rem",
                   boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-                  fontSize: chartConfig.tooltipFontSize,
+                  fontSize: isMobile ? "0.75rem" : "0.875rem",
                 }}
                 labelStyle={{ color: "#0f172a", fontWeight: "bold" }}
+                labelFormatter={(_label, payload) =>
+                  (payload?.[0]?.payload as ChartPoint | undefined)?.tooltipLabel ?? _label
+                }
                 formatter={(value: number) => [
                   formatNumberWithCommas(value),
                   "Clicks",
                 ]}
               />
-              <Legend
-                wrapperStyle={{
-                  fontSize: chartConfig.legendFontSize,
-                  paddingTop: chartConfig.legendPaddingTop,
-                }}
-                iconType="circle"
-                iconSize={chartConfig.legendIconSize}
-              />
               <Bar
                 dataKey="clicks"
                 fill="url(#colorClicks)"
-                radius={[8, 8, 0, 0]}
+                radius={[6, 6, 0, 0]}
                 name="Clicks"
-                barSize={chartConfig.barSize}
+                maxBarSize={40}
               />
               <defs>
                 <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
