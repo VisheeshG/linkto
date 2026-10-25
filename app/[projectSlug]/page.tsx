@@ -1,33 +1,65 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
-import { supabase, Project, Link } from "@/lib/supabase";
-import {
-  countClicksForLinkIds,
-  fetchAllLinksForProjectId,
-} from "@/lib/supabase-pagination";
+import type { Project, Link } from "@/lib/supabase";
 import { LinkList } from "@/components/LinkList";
 import { TitleSearchBar } from "@/components/TitleSearchBar";
 import { matchesTitleQuery } from "@/lib/search";
 import { Analytics } from "@/components/Analytics";
 import { PasswordVerificationModal } from "@/components/PasswordVerificationModal";
+import { useHideBotClicks } from "@/hooks/useHideBotClicks";
+import type { ClickSource } from "@/lib/click-source";
 import { Link2, MousePointerClick, TrendingUp } from "lucide-react";
+
+type PublicProject = Pick<Project, "id" | "name" | "description" | "slug">;
+
+type StoredAuth = { accessToken: string; expiresAt: string };
+
+function storageKey(projectSlug: string) {
+  return `project_auth_${projectSlug}`;
+}
+
+function readStoredToken(projectSlug: string): string | null {
+  try {
+    const raw = localStorage.getItem(storageKey(projectSlug));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredAuth>;
+    if (
+      !parsed.accessToken ||
+      !parsed.expiresAt ||
+      new Date(parsed.expiresAt) <= new Date()
+    ) {
+      localStorage.removeItem(storageKey(projectSlug));
+      return null;
+    }
+    return parsed.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredToken(projectSlug: string) {
+  try {
+    localStorage.removeItem(storageKey(projectSlug));
+  } catch {
+    // ignore
+  }
+}
 
 export default function PublicProjectPage() {
   const params = useParams();
-  const [project, setProject] = useState<Project | null>(null);
+  const [project, setProject] = useState<PublicProject | null>(null);
+  const [lockedProjectName, setLockedProjectName] = useState<string | null>(null);
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [requiresPassword, setRequiresPassword] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [totalClicks, setTotalClicks] = useState(0);
-  const [platformCount, setPlatformCount] = useState(0);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [stats, setStats] = useState({ totalClicks: 0, humanClicks: 0 });
   const [linkSearch, setLinkSearch] = useState("");
   const [brandSlug, setBrandSlug] = useState<string | null>(null);
+  const [hideBots] = useHideBotClicks();
 
   const projectSlug = params.projectSlug as string;
 
@@ -36,156 +68,74 @@ export default function PublicProjectPage() {
     [links, linkSearch]
   );
 
-  // Load project info and check password requirement on mount
+  const platformCount = useMemo(
+    () => new Set(links.map((l) => l.platform)).size,
+    [links]
+  );
+
+  const clickSource: ClickSource = useMemo(
+    () => ({ kind: "public", projectSlug, accessToken }),
+    [projectSlug, accessToken]
+  );
+
+  /** Loads the project; returns false when a password is required. */
+  const loadProject = useCallback(
+    async (token: string | null): Promise<boolean> => {
+      const response = await fetch(
+        `/api/public/projects/${encodeURIComponent(projectSlug)}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          cache: "no-store",
+        }
+      );
+
+      if (response.status === 401) {
+        const data = await response.json().catch(() => ({}));
+        if (token) clearStoredToken(projectSlug);
+        setAccessToken(null);
+        setProject(null);
+        setLockedProjectName(data?.project?.name ?? "This project");
+        return false;
+      }
+
+      if (!response.ok) {
+        setError("The requested project could not be found.");
+        return true;
+      }
+
+      const data = await response.json();
+      setAccessToken(token);
+      setLockedProjectName(null);
+      setProject(data.project);
+      setBrandSlug(data.brandSlug ?? null);
+      setLinks(data.links ?? []);
+      setStats(data.stats ?? { totalClicks: 0, humanClicks: 0 });
+
+      // If URL has ?link_id=uuid, preselect that link
+      const qId = new URLSearchParams(window.location.search).get("link_id");
+      if (qId && (data.links as Link[]).some((l) => l.id === qId)) {
+        setSelectedLinkId(qId);
+      }
+      return true;
+    },
+    [projectSlug]
+  );
+
   useEffect(() => {
-    const init = async () => {
+    if (!projectSlug) return;
+    (async () => {
       try {
         setLoading(true);
         setError(null);
-
-        // First, load the project basic info (needed for password modal)
-        const { data: projectData, error: projectError } = await supabase
-          .from("projects")
-          .select("*")
-          .eq("slug", projectSlug)
-          .single();
-
-        if (projectError || !projectData) {
-          setError("Project not found");
-          setCheckingAuth(false);
-          setLoading(false);
-          return;
-        }
-
-        setProject(projectData);
-
-        if (projectData.brand_id) {
-          const { data: brandData } = await supabase
-            .from("brands")
-            .select("slug")
-            .eq("id", projectData.brand_id)
-            .single();
-          setBrandSlug(brandData?.slug ?? null);
-        } else {
-          setBrandSlug(null);
-        }
-
-        // Check if project requires password
-        const response = await fetch(
-          `/api/verify-project-password?project_slug=${projectSlug}`
-        );
-
-        if (!response.ok) {
-          setError("Project not found");
-          setCheckingAuth(false);
-          setLoading(false);
-          return;
-        }
-
-        const data = await response.json();
-        setRequiresPassword(data.hasPasswords);
-
-        // Check if already authenticated from localStorage
-        if (data.hasPasswords) {
-          const storedAuth = localStorage.getItem(
-            `project_auth_${projectSlug}`
-          );
-          if (storedAuth) {
-            try {
-              const authData = JSON.parse(storedAuth);
-              // Check if auth is still valid (not expired)
-              const expiresAt = new Date(authData.expiresAt);
-              if (expiresAt > new Date()) {
-                // Validate that the password still exists in the database
-                if (authData.passwordId) {
-                  const validateResponse = await fetch(
-                    `/api/verify-project-password?project_slug=${projectSlug}&password_id=${authData.passwordId}`
-                  );
-
-                  if (validateResponse.ok) {
-                    const validateData = await validateResponse.json();
-                    if (validateData.valid) {
-                      setIsAuthenticated(true);
-                    } else {
-                      // Password was deleted, clear localStorage
-                      localStorage.removeItem(`project_auth_${projectSlug}`);
-                      setIsAuthenticated(false);
-                    }
-                  } else {
-                    localStorage.removeItem(`project_auth_${projectSlug}`);
-                    setIsAuthenticated(false);
-                  }
-                } else {
-                  // Old format without passwordId, keep for backward compatibility
-                  setIsAuthenticated(true);
-                }
-              } else {
-                localStorage.removeItem(`project_auth_${projectSlug}`);
-                setIsAuthenticated(false);
-              }
-            } catch {
-              localStorage.removeItem(`project_auth_${projectSlug}`);
-              setIsAuthenticated(false);
-            }
-          } else {
-            setIsAuthenticated(false);
-          }
-        } else {
-          setIsAuthenticated(true); // No password required
-        }
+        await loadProject(readStoredToken(projectSlug));
       } catch (err) {
-        console.error("Error during initialization:", err);
+        console.error("Error loading project:", err);
         setError("Failed to load project");
       } finally {
-        setCheckingAuth(false);
         setLoading(false);
       }
-    };
-
-    if (projectSlug) {
-      init();
-    }
-  }, [projectSlug]);
-
-  // Load links when authenticated
-  useEffect(() => {
-    const loadLinks = async () => {
-      if (!project) return;
-
-      try {
-        setLoading(true);
-        const linksData = await fetchAllLinksForProjectId(supabase, project.id);
-        setLinks(linksData);
-
-        if (linksData.length > 0) {
-          const linkIds = linksData.map((l) => l.id);
-          const clickCount = await countClicksForLinkIds(supabase, linkIds);
-          setTotalClicks(clickCount);
-          setPlatformCount(new Set(linksData.map((l) => l.platform)).size);
-        } else {
-          setTotalClicks(0);
-          setPlatformCount(0);
-        }
-
-        // If URL has ?link_id=uuid, preselect that link
-        const search = new URLSearchParams(window.location.search);
-        const qId = search.get("link_id");
-        if (qId && linksData.length > 0) {
-          const match = linksData.find((l) => l.id === qId);
-          if (match) setSelectedLinkId(match.id);
-        }
-      } catch {
-        setError("Failed to load links");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Only load links if authenticated and auth check is complete
-    if (project && isAuthenticated && !checkingAuth) {
-      loadLinks();
-    }
-  }, [project, isAuthenticated, checkingAuth]);
+    })();
+  }, [projectSlug, loadProject]);
 
   const handlePasswordVerify = async (password: string): Promise<boolean> => {
     try {
@@ -202,52 +152,47 @@ export default function PublicProjectPage() {
 
       const data = await response.json();
 
-      if (data.valid) {
-        // Store authentication in localStorage with expiration (24 hours)
-        const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + 24);
-
-        localStorage.setItem(
-          `project_auth_${projectSlug}`,
-          JSON.stringify({
-            accessToken: data.accessToken,
-            passwordId: data.passwordId,
-            expiresAt: expiresAt.toISOString(),
-          })
-        );
-
-        setIsAuthenticated(true);
-        return true;
+      if (response.status === 429) {
+        throw new Error(data.error || "Too many attempts");
       }
 
-      return false;
+      if (!data.valid) return false;
+
+      const token: string | null = data.accessToken ?? null;
+      if (token) {
+        try {
+          localStorage.setItem(
+            storageKey(projectSlug),
+            JSON.stringify({ accessToken: token, expiresAt: data.expiresAt })
+          );
+        } catch {
+          // ignore storage failures; the token still works for this visit
+        }
+      }
+
+      setLoading(true);
+      try {
+        return await loadProject(token);
+      } finally {
+        setLoading(false);
+      }
     } catch (err) {
       console.error("Password verification error:", err);
-      return false;
+      throw err;
     }
   };
 
-  // Show loading only during initial check
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-600">Loading...</div>
-      </div>
-    );
-  }
-
   // Show password modal if required and not authenticated
-  if (requiresPassword && !isAuthenticated && project) {
+  if (lockedProjectName && !project) {
     return (
       <PasswordVerificationModal
-        projectName={project.name}
+        projectName={lockedProjectName}
         projectSlug={projectSlug}
         onVerify={handlePasswordVerify}
       />
     );
   }
 
-  // Show loading while fetching links (after authentication)
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -288,6 +233,7 @@ export default function PublicProjectPage() {
         link={selectedLink}
         projectSlug={project.slug}
         brandSlug={brandSlug}
+        clickSource={clickSource}
         onBack={() => {
           setSelectedLinkId(null);
           const url = new URL(window.location.href);
@@ -331,10 +277,10 @@ export default function PublicProjectPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  Total Clicks
+                  {hideBots ? "Genuine Clicks" : "Total Clicks"}
                 </p>
                 <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {totalClicks}
+                  {hideBots ? stats.humanClicks : stats.totalClicks}
                 </p>
               </div>
               <div className="w-12 h-12 sm:w-14 sm:h-14 bg-green-50 rounded-xl flex items-center justify-center flex-shrink-0">

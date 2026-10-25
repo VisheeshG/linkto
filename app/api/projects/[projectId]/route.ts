@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, PostgrestError } from "@supabase/supabase-js";
 import {
   deleteAllArchivedClicksForLinkIds,
-  deleteAllClicksForLinkIds,
   fetchAllLinkIdsForProjectId,
 } from "@/lib/supabase-pagination";
 
@@ -75,77 +74,26 @@ export async function DELETE(
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
+    // links, link_clicks and project_passwords are removed by ON DELETE
+    // CASCADE. The optional archive table has no foreign key, so clean it up
+    // explicitly first.
     let linkIds: string[] = [];
     try {
       linkIds = await fetchAllLinkIdsForProjectId(admin, projectId);
-    } catch (linksError) {
-      console.error("Error fetching links:", linksError);
-      return NextResponse.json(
-        {
-          error:
-            linksError instanceof Error
-              ? linksError.message
-              : "Error fetching links",
-        },
-        { status: 500 }
-      );
-    }
-
-    if (linkIds.length > 0) {
-      try {
-        await deleteAllClicksForLinkIds(admin, linkIds);
-      } catch (clicksError) {
-        console.error("Error deleting link_clicks:", clicksError);
+      await deleteAllArchivedClicksForLinkIds(admin, linkIds);
+    } catch (archiveError) {
+      if (!isMissingTableError(archiveError as PostgrestError)) {
+        console.error("Error deleting link_clicks_archive:", archiveError);
         return NextResponse.json(
           {
             error:
-              clicksError instanceof Error
-                ? clicksError.message
-                : "Error deleting link_clicks",
+              archiveError instanceof Error
+                ? archiveError.message
+                : "Error deleting archived clicks",
           },
           { status: 500 }
         );
       }
-
-      try {
-        await deleteAllArchivedClicksForLinkIds(admin, linkIds);
-      } catch (archiveError) {
-        if (!isMissingTableError(archiveError as PostgrestError)) {
-          console.error("Error deleting link_clicks_archive:", archiveError);
-          return NextResponse.json(
-            {
-              error:
-                archiveError instanceof Error
-                  ? archiveError.message
-                  : "Error deleting link_clicks_archive",
-            },
-            { status: 500 }
-          );
-        }
-      }
-
-      const { error: deleteLinksError } = await admin
-        .from("links")
-        .delete()
-        .eq("project_id", projectId);
-
-      if (deleteLinksError) {
-        console.error("Error deleting links:", deleteLinksError);
-        return NextResponse.json(
-          { error: deleteLinksError.message },
-          { status: 500 }
-        );
-      }
-    }
-
-    const { error: passwordsError } = await admin
-      .from("project_passwords")
-      .delete()
-      .eq("project_id", projectId);
-
-    if (passwordsError) {
-      console.error("Error deleting project_passwords:", passwordsError);
-      return NextResponse.json({ error: passwordsError.message }, { status: 500 });
     }
 
     const { error: deleteProjectError, count } = await admin

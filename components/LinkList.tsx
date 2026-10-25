@@ -113,8 +113,28 @@ export function LinkList({
                     <h3 className="text-base sm:text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition break-words text-left">
                       {link.link_title}
                     </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                      {link.platform}
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                      <span>{link.platform}</span>
+                      {link.expires_at &&
+                        (new Date(link.expires_at) <= new Date() ? (
+                          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                            Expired
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            Expires{" "}
+                            {new Date(link.expires_at).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                        ))}
+                      {link.utm_enabled && (
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                          UTM
+                        </span>
+                      )}
                     </p>
                     {baseUrl && (
                       <p className="text-xs text-slate-600 mt-2 font-mono break-all">

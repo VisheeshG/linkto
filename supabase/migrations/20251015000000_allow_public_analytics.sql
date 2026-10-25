@@ -7,6 +7,7 @@
 
 -- Allow everyone to view link clicks so analytics can be rendered on public pages
 DROP POLICY IF EXISTS "Users can view clicks on own links" ON link_clicks;
+DROP POLICY IF EXISTS "Anyone can view link clicks" ON link_clicks;
 
 CREATE POLICY "Anyone can view link clicks"
   ON link_clicks FOR SELECT

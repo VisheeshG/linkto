@@ -17,7 +17,8 @@ ALTER TABLE links DROP COLUMN IF EXISTS is_active;
 DROP POLICY IF EXISTS "Anyone can view active links" ON links;
 
 -- Create new policy that allows anonymous access to all links
+DROP POLICY IF EXISTS "Anyone can view all links" ON links;
 CREATE POLICY "Anyone can view all links"
   ON links FOR SELECT
   TO anon
-  WITH CHECK (true);
+  USING (true);

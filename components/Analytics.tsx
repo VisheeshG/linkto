@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Link, LinkClick, supabase } from "@/lib/supabase";
-import { fetchAllClicksForLinkId } from "@/lib/supabase-pagination";
+import { Link, LinkClick } from "@/lib/supabase";
+import {
+  ClickSource,
+  OWNER_CLICK_SOURCE,
+  loadClicksForLink,
+} from "@/lib/click-source";
 import {
   ArrowLeft,
   ArrowDown,
@@ -13,16 +17,41 @@ import {
   Users,
   Eye,
   X,
-  Filter,
   Download,
   FileText,
   FileSpreadsheet,
   ChevronDown,
+  UserCheck,
 } from "lucide-react";
 import { ClicksAnalyticsChart } from "./ClicksAnalyticsChart";
 import { GeoInsightsPanelClient } from "./GeoInsightsPanelLazy";
 import { AnalyticsDateRangePicker } from "./AnalyticsDateRangePicker";
-import { filterClicksInDateRange } from "@/lib/click-aggregation";
+import {
+  AggregatedClickAnalytics,
+  aggregateClicks,
+  filterBotClicks,
+  filterClicksInDateRange,
+  summarizeTraffic,
+} from "@/lib/click-aggregation";
+import { parseDateKey } from "@/lib/analytics-time";
+import { useHideBotClicks } from "@/hooks/useHideBotClicks";
+import { BotFilterBar } from "./BotFilterBar";
+import { AnalyticsFiltersBar, AnalyticsViewMode } from "./AnalyticsFiltersBar";
+import { AnalyticsStatsCard as StatsCard } from "./AnalyticsStatsCard";
+import {
+  ClickFilters,
+  CreatorTableSortColumn,
+  DEFAULT_CLICK_FILTERS,
+  FILTER_ALL,
+  SortDirection,
+  buildCreatorRows,
+  extractFilterOptions,
+  hasActiveFilters,
+  matchesClickFilters,
+  sortCreatorRows,
+  sortedLocationValues,
+} from "@/lib/click-filters";
+import { TrackingQrCode } from "./TrackingQrCode";
 import {
   buildTrackingUrlExample,
   buildTrackingUrlTemplate,
@@ -35,253 +64,6 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
-
-const FILTER_ALL = "all";
-
-type ClickFilters = {
-  submission: string;
-  country: string;
-  state: string;
-  city: string;
-  device: string;
-  browser: string;
-};
-
-const DEFAULT_CLICK_FILTERS: ClickFilters = {
-  submission: FILTER_ALL,
-  country: FILTER_ALL,
-  state: FILTER_ALL,
-  city: FILTER_ALL,
-  device: FILTER_ALL,
-  browser: FILTER_ALL,
-};
-
-function sortSubmissionValues(values: string[]): string[] {
-  return [...values].sort((a, b) => {
-    const aIsNumeric = !isNaN(Number(a));
-    const bIsNumeric = !isNaN(Number(b));
-    if (aIsNumeric && bIsNumeric) return Number(a) - Number(b);
-    if (aIsNumeric) return -1;
-    if (bIsNumeric) return 1;
-    return a.localeCompare(b);
-  });
-}
-
-function matchesClickFilters(click: LinkClick, filters: ClickFilters): boolean {
-  if (
-    filters.submission !== FILTER_ALL &&
-    (click.submission_number ?? "") !== filters.submission
-  ) {
-    return false;
-  }
-  if (filters.country !== FILTER_ALL && click.country !== filters.country) {
-    return false;
-  }
-  if (filters.state !== FILTER_ALL && click.state !== filters.state) {
-    return false;
-  }
-  if (filters.city !== FILTER_ALL && click.city !== filters.city) {
-    return false;
-  }
-  if (
-    filters.device !== FILTER_ALL &&
-    click.device_type !== filters.device
-  ) {
-    return false;
-  }
-  if (filters.browser !== FILTER_ALL && click.browser !== filters.browser) {
-    return false;
-  }
-  return true;
-}
-
-function getDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatDateForDisplay(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function computeAnalyticsFromClicks(
-  clicks: LinkClick[],
-  link: Link,
-  startDate: string,
-  endDate: string
-): AnalyticsData {
-  const analyticsData: AnalyticsData = {
-    totalClicks: clicks.length,
-    clicksByLinkTitle: {},
-    clicksByCreator: {},
-    clicksBySubmission: {},
-    clicksByCountry: {},
-    clicksByState: {},
-    clicksByCity: {},
-    clicksByDevice: {},
-    clicksByBrowser: {},
-    clicksByWeek: [],
-    filteredClicks: clicks,
-  };
-
-  const dailyClicksMap: Record<string, number> = {};
-
-  clicks.forEach((click) => {
-    const linkTitle = link.link_title;
-    analyticsData.clicksByLinkTitle[linkTitle] =
-      (analyticsData.clicksByLinkTitle[linkTitle] || 0) + 1;
-
-    if (click.creator_username) {
-      analyticsData.clicksByCreator[click.creator_username] =
-        (analyticsData.clicksByCreator[click.creator_username] || 0) + 1;
-    }
-
-    if (click.submission_number) {
-      analyticsData.clicksBySubmission[click.submission_number] =
-        (analyticsData.clicksBySubmission[click.submission_number] || 0) + 1;
-    }
-
-    if (click.country) {
-      analyticsData.clicksByCountry[click.country] =
-        (analyticsData.clicksByCountry[click.country] || 0) + 1;
-    }
-
-    if (click.state) {
-      analyticsData.clicksByState[click.state] =
-        (analyticsData.clicksByState[click.state] || 0) + 1;
-    }
-
-    if (click.city) {
-      analyticsData.clicksByCity[click.city] =
-        (analyticsData.clicksByCity[click.city] || 0) + 1;
-    }
-
-    if (click.device_type) {
-      analyticsData.clicksByDevice[click.device_type] =
-        (analyticsData.clicksByDevice[click.device_type] || 0) + 1;
-    }
-
-    if (click.browser) {
-      analyticsData.clicksByBrowser[click.browser] =
-        (analyticsData.clicksByBrowser[click.browser] || 0) + 1;
-    }
-
-    if (click.clicked_at) {
-      const dateString = getDateString(new Date(click.clicked_at));
-      dailyClicksMap[dateString] = (dailyClicksMap[dateString] || 0) + 1;
-    }
-  });
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const daysDiff =
-    Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-  const rangeDays = [];
-  for (let i = 0; i < daysDiff; i++) {
-    const dayDate = new Date(start);
-    dayDate.setDate(start.getDate() + i);
-    const dateString = getDateString(dayDate);
-    rangeDays.push({
-      week: formatDateForDisplay(dayDate),
-      clicks: dailyClicksMap[dateString] || 0,
-    });
-  }
-
-  analyticsData.clicksByWeek = rangeDays;
-  return analyticsData;
-}
-
-function extractFilterOptions(
-  clicks: LinkClick[],
-  countryFilter: string,
-  stateFilter: string
-): {
-  submissions: string[];
-  countries: string[];
-  states: string[];
-  cities: string[];
-  devices: string[];
-  browsers: string[];
-} {
-  const submissions = new Set<string>();
-  const countries = new Set<string>();
-  const states = new Set<string>();
-  const cities = new Set<string>();
-  const devices = new Set<string>();
-  const browsers = new Set<string>();
-
-  clicks.forEach((click) => {
-    if (click.submission_number) submissions.add(click.submission_number);
-    if (click.country) countries.add(click.country);
-    if (
-      click.state &&
-      (countryFilter === FILTER_ALL || click.country === countryFilter)
-    ) {
-      states.add(click.state);
-    }
-    if (
-      click.city &&
-      (countryFilter === FILTER_ALL || click.country === countryFilter) &&
-      (stateFilter === FILTER_ALL || click.state === stateFilter)
-    ) {
-      cities.add(click.city);
-    }
-    if (click.device_type) devices.add(click.device_type);
-    if (click.browser) browsers.add(click.browser);
-  });
-
-  return {
-    submissions: sortSubmissionValues([...submissions]),
-    countries: [...countries].sort((a, b) => a.localeCompare(b)),
-    states: [...states].sort((a, b) => a.localeCompare(b)),
-    cities: [...cities].sort((a, b) => a.localeCompare(b)),
-    devices: [...devices].sort((a, b) => a.localeCompare(b)),
-    browsers: [...browsers].sort((a, b) => a.localeCompare(b)),
-  };
-}
-
-function hasActiveFilters(filters: ClickFilters): boolean {
-  return Object.values(filters).some((v) => v !== FILTER_ALL);
-}
-
-type CreatorTableSortColumn =
-  | "lastClick"
-  | "creator"
-  | "country"
-  | "state"
-  | "city"
-  | "totalClicks"
-  | "totalSubmissions";
-type SortDirection = "asc" | "desc";
-
-type CreatorTableRow = {
-  username: string;
-  totalClicks: number;
-  lastClick: string;
-  submissions: Set<string>;
-  countries: Set<string>;
-  states: Set<string>;
-  cities: Set<string>;
-};
-
-function sortedLocationValues(values: Set<string>): string[] {
-  return [...values].filter(Boolean).sort((a, b) => a.localeCompare(b));
-}
-
-function compareLocationSets(a: Set<string>, b: Set<string>): number {
-  const aLabel = sortedLocationValues(a).join(", ");
-  const bLabel = sortedLocationValues(b).join(", ");
-  if (!aLabel && !bLabel) return 0;
-  if (!aLabel) return 1;
-  if (!bLabel) return -1;
-  return aLabel.localeCompare(bLabel);
-}
 
 function renderCreatorLocationCell(values: Set<string>) {
   const list = sortedLocationValues(values);
@@ -299,108 +81,25 @@ function renderCreatorLocationCell(values: Set<string>) {
   );
 }
 
-function buildCreatorRows(clicks: LinkClick[]): CreatorTableRow[] {
-  const creatorMap = new Map<string, CreatorTableRow>();
-
-  clicks.forEach((click) => {
-    if (!click.creator_username) return;
-
-    const existing = creatorMap.get(click.creator_username);
-    if (existing) {
-      existing.totalClicks++;
-      if (click.submission_number)
-        existing.submissions.add(click.submission_number);
-      if (click.country) existing.countries.add(click.country);
-      if (click.state) existing.states.add(click.state);
-      if (click.city) existing.cities.add(click.city);
-      if (click.clicked_at && click.clicked_at > existing.lastClick) {
-        existing.lastClick = click.clicked_at;
-      }
-    } else {
-      creatorMap.set(click.creator_username, {
-        username: click.creator_username,
-        totalClicks: 1,
-        lastClick: click.clicked_at || "",
-        submissions: new Set(
-          click.submission_number ? [click.submission_number] : []
-        ),
-        countries: new Set(click.country ? [click.country] : []),
-        states: new Set(click.state ? [click.state] : []),
-        cities: new Set(click.city ? [click.city] : []),
-      });
-    }
-  });
-
-  return Array.from(creatorMap.values());
-}
-
-function sortCreatorRows(
-  rows: CreatorTableRow[],
-  column: CreatorTableSortColumn,
-  direction: SortDirection
-): CreatorTableRow[] {
-  const sorted = [...rows].sort((a, b) => {
-    let cmp = 0;
-    switch (column) {
-      case "lastClick":
-        cmp =
-          new Date(a.lastClick || 0).getTime() -
-          new Date(b.lastClick || 0).getTime();
-        break;
-      case "creator":
-        cmp = a.username.localeCompare(b.username);
-        break;
-      case "country":
-        cmp = compareLocationSets(a.countries, b.countries);
-        break;
-      case "state":
-        cmp = compareLocationSets(a.states, b.states);
-        break;
-      case "city":
-        cmp = compareLocationSets(a.cities, b.cities);
-        break;
-      case "totalClicks":
-        cmp = a.totalClicks - b.totalClicks;
-        break;
-      case "totalSubmissions":
-        cmp = a.submissions.size - b.submissions.size;
-        break;
-    }
-    return direction === "asc" ? cmp : -cmp;
-  });
-  return sorted;
-}
-
 interface AnalyticsProps {
   link: Link;
   onBack: () => void;
   projectSlug: string;
   brandSlug?: string | null;
+  /** Defaults to the signed-in owner's Supabase session. */
+  clickSource?: ClickSource;
 }
 
-interface AnalyticsData {
-  totalClicks: number;
-  clicksByLinkTitle: Record<string, number>;
-  clicksByCreator: Record<string, number>;
-  clicksBySubmission: Record<string, number>;
-  clicksByCountry: Record<string, number>;
-  clicksByState: Record<string, number>;
-  clicksByCity: Record<string, number>;
-  clicksByDevice: Record<string, number>;
-  clicksByBrowser: Record<string, number>;
-  clicksByWeek: { week: string; clicks: number }[];
-  filteredClicks: LinkClick[];
-}
-
-type AnalyticsViewMode = "map" | "detailed";
 
 export function Analytics({
   link,
   onBack,
   projectSlug,
   brandSlug = null,
+  clickSource = OWNER_CLICK_SOURCE,
 }: AnalyticsProps) {
   const [allClicks, setAllClicks] = useState<LinkClick[]>([]);
+  const [hideBots, setHideBots] = useHideBotClicks();
   const [clickFilters, setClickFilters] =
     useState<ClickFilters>(DEFAULT_CLICK_FILTERS);
   const [creatorModalFilters, setCreatorModalFilters] =
@@ -416,17 +115,16 @@ export function Analytics({
     handleStartDateChange,
     handleEndDateChange,
   } = useAnalyticsDateRange(ANALYTICS_DATE_RANGE_STORAGE_KEYS.project, allClicks);
-  const [creatorAnalytics, setCreatorAnalytics] = useState<{
-    clicks: LinkClick[];
-    totalClicks: number;
-    clicksBySubmission: Record<string, number>;
-    clicksByCountry: Record<string, number>;
-    clicksByState: Record<string, number>;
-    clicksByCity: Record<string, number>;
-    clicksByDevice: Record<string, number>;
-    clicksByBrowser: Record<string, number>;
-    allSubmissions: string[];
-  } | null>(null);
+  const [creatorRawClicks, setCreatorRawClicks] = useState<LinkClick[] | null>(
+    null
+  );
+  const creatorAnalytics = useMemo(
+    () =>
+      creatorRawClicks
+        ? { clicks: filterBotClicks(creatorRawClicks, hideBots) }
+        : null,
+    [creatorRawClicks, hideBots]
+  );
   const [creatorTableSort, setCreatorTableSort] = useState<{
     column: CreatorTableSortColumn;
     direction: SortDirection;
@@ -438,14 +136,14 @@ export function Analytics({
 
   const loadAnalytics = useCallback(async () => {
     try {
-      const clicks = await fetchAllClicksForLinkId(supabase, link.id);
+      const clicks = await loadClicksForLink(clickSource, link.id);
       setAllClicks(clicks);
     } catch (error) {
       console.error("Error loading analytics:", error);
     } finally {
       setLoading(false);
     }
-  }, [link.id]);
+  }, [clickSource, link.id]);
 
   useEffect(() => {
     loadAnalytics();
@@ -465,30 +163,53 @@ export function Analytics({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const visibleClicks = useMemo(
+    () => filterBotClicks(allClicks, hideBots),
+    [allClicks, hideBots]
+  );
+
   const filterOptions = useMemo(
-    () => extractFilterOptions(allClicks, clickFilters.country, clickFilters.state),
-    [allClicks, clickFilters.country, clickFilters.state]
-  );
-
-  const filteredClicks = useMemo(
-    () => allClicks.filter((click) => matchesClickFilters(click, clickFilters)),
-    [allClicks, clickFilters]
-  );
-
-  const dateFilteredClicks = useMemo(
-    () => filterClicksInDateRange(filteredClicks, startDate, endDate),
-    [filteredClicks, startDate, endDate]
-  );
-
-  const data = useMemo(
     () =>
-      computeAnalyticsFromClicks(
-        dateFilteredClicks,
-        link,
+      extractFilterOptions(visibleClicks, clickFilters.country, clickFilters.state),
+    [visibleClicks, clickFilters.country, clickFilters.state]
+  );
+
+  // Dimension + date filters applied to all traffic; the bot filter is applied
+  // last so the bot summary describes exactly what the toggle hides.
+  const dateFilteredAllTraffic = useMemo(
+    () =>
+      filterClicksInDateRange(
+        allClicks.filter((click) => matchesClickFilters(click, clickFilters)),
         startDate,
         endDate
       ),
-    [dateFilteredClicks, link, startDate, endDate]
+    [allClicks, clickFilters, startDate, endDate]
+  );
+
+  const trafficSummary = useMemo(
+    () => summarizeTraffic(dateFilteredAllTraffic),
+    [dateFilteredAllTraffic]
+  );
+
+  const filteredClicks = useMemo(
+    () => visibleClicks.filter((click) => matchesClickFilters(click, clickFilters)),
+    [visibleClicks, clickFilters]
+  );
+
+  const dateFilteredClicks = useMemo(
+    () => filterBotClicks(dateFilteredAllTraffic, hideBots),
+    [dateFilteredAllTraffic, hideBots]
+  );
+
+  const data: AggregatedClickAnalytics = useMemo(
+    () =>
+      aggregateClicks(
+        dateFilteredClicks,
+        { [link.id]: link.link_title },
+        startDate,
+        endDate
+      ),
+    [dateFilteredClicks, link.id, link.link_title, startDate, endDate]
   );
 
   const dateRangeLabel = useMemo(
@@ -510,6 +231,9 @@ export function Analytics({
         City: click.city || "N/A",
         Device: click.device_type || "N/A",
         Browser: click.browser || "N/A",
+        OS: click.os || "N/A",
+        Referrer: click.referrer || "N/A",
+        Traffic: click.traffic_type || "human",
       })),
     [data.filteredClicks]
   );
@@ -570,9 +294,19 @@ export function Analytics({
         title: "Clicks by Browser",
         entries: sortEntriesForSection("Clicks by Browser", data.clicksByBrowser),
       },
+      {
+        title: "Clicks by OS",
+        entries: sortEntriesForSection("Clicks by OS", data.clicksByOs),
+      },
+      {
+        title: "Clicks by Referrer",
+        entries: sortEntriesForSection("Clicks by Referrer", data.clicksByReferrer),
+      },
     ];
   }, [
     data.clicksByBrowser,
+    data.clicksByOs,
+    data.clicksByReferrer,
     data.clicksByCity,
     data.clicksByCountry,
     data.clicksByState,
@@ -607,7 +341,7 @@ export function Analytics({
   const weeklyRows = useMemo(
     () =>
       data.clicksByWeek.map((row, index) => {
-        const date = new Date(startDate);
+        const date = parseDateKey(startDate);
         date.setDate(date.getDate() + index);
         return {
           Week: date.toLocaleDateString("en-US", {
@@ -910,69 +644,10 @@ export function Analytics({
 
   const loadCreatorAnalytics = async (creatorUsername: string) => {
     try {
-      const clicks = await fetchAllClicksForLinkId(supabase, link.id, {
+      const clicks = await loadClicksForLink(clickSource, link.id, {
         creatorUsername,
       });
-
-      // Get all unique submissions
-      const allSubmissions = Array.from(
-        new Set(
-          clicks
-            .map((click) => click.submission_number)
-            .filter((s): s is string => Boolean(s))
-        )
-      ).sort((a, b) => {
-        const aIsNumeric = !isNaN(Number(a));
-        const bIsNumeric = !isNaN(Number(b));
-
-        if (aIsNumeric && bIsNumeric) {
-          return Number(a) - Number(b);
-        }
-        if (aIsNumeric) return -1;
-        if (bIsNumeric) return 1;
-        return a.localeCompare(b);
-      });
-
-      const analytics = {
-        clicks,
-        totalClicks: clicks.length,
-        clicksBySubmission: {} as Record<string, number>,
-        clicksByCountry: {} as Record<string, number>,
-        clicksByState: {} as Record<string, number>,
-        clicksByCity: {} as Record<string, number>,
-        clicksByDevice: {} as Record<string, number>,
-        clicksByBrowser: {} as Record<string, number>,
-        allSubmissions,
-      };
-
-      clicks.forEach((click) => {
-        if (click.submission_number) {
-          analytics.clicksBySubmission[click.submission_number] =
-            (analytics.clicksBySubmission[click.submission_number] || 0) + 1;
-        }
-        if (click.country) {
-          analytics.clicksByCountry[click.country] =
-            (analytics.clicksByCountry[click.country] || 0) + 1;
-        }
-        if (click.state) {
-          analytics.clicksByState[click.state] =
-            (analytics.clicksByState[click.state] || 0) + 1;
-        }
-        if (click.city) {
-          analytics.clicksByCity[click.city] =
-            (analytics.clicksByCity[click.city] || 0) + 1;
-        }
-        if (click.device_type) {
-          analytics.clicksByDevice[click.device_type] =
-            (analytics.clicksByDevice[click.device_type] || 0) + 1;
-        }
-        if (click.browser) {
-          analytics.clicksByBrowser[click.browser] =
-            (analytics.clicksByBrowser[click.browser] || 0) + 1;
-        }
-      });
-
-      setCreatorAnalytics(analytics);
+      setCreatorRawClicks(clicks);
       setSelectedCreator(creatorUsername);
       setCreatorModalFilters(DEFAULT_CLICK_FILTERS);
     } catch (error) {
@@ -1097,7 +772,13 @@ export function Analytics({
       </header>
 
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <BotFilterBar
+          hideBots={hideBots}
+          onChange={setHideBots}
+          summary={trafficSummary}
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02]">
             <div className="flex items-center justify-between">
               <div>
@@ -1110,6 +791,25 @@ export function Analytics({
               </div>
               <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
                 <MousePointerClick className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02]">
+            <div className="flex items-center justify-between">
+              <div>
+                <p
+                  className="text-xs sm:text-sm text-slate-600 mb-1 font-medium"
+                  title="Distinct visitors (same network + browser counted once)"
+                >
+                  Unique Visitors
+                </p>
+                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
+                  {data.uniqueVisitors}
+                </p>
+              </div>
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                <UserCheck className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600" />
               </div>
             </div>
           </div>
@@ -1178,6 +878,17 @@ export function Analytics({
             </div>
           </div>
         </div>
+
+        {clickSource.kind === "owner" && typeof window !== "undefined" && (
+          <TrackingQrCode
+            baseUrl={window.location.origin}
+            brandSlug={brandSlug}
+            projectSlug={projectSlug}
+            shortCode={link.short_code}
+            includeSubmissionInUrl={includeSub}
+            fileNamePrefix={getExportFilenamePrefix()}
+          />
+        )}
 
         <AnalyticsFiltersBar
           filters={clickFilters}
@@ -1262,6 +973,16 @@ export function Analytics({
                 title="Clicks by Browser"
                 data={data.clicksByBrowser}
                 color="slate"
+              />
+              <StatsCard
+                title="Clicks by OS"
+                data={data.clicksByOs}
+                color="cyan"
+              />
+              <StatsCard
+                title="Clicks by Referrer"
+                data={data.clicksByReferrer}
+                color="blue"
               />
             </div>
 
@@ -1438,7 +1159,7 @@ export function Analytics({
             className="clickable-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => {
               setSelectedCreator(null);
-              setCreatorAnalytics(null);
+              setCreatorRawClicks(null);
             }}
           />
           <div className="relative z-10 w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
@@ -1460,7 +1181,7 @@ export function Analytics({
                 <button
                   onClick={() => {
                     setSelectedCreator(null);
-                    setCreatorAnalytics(null);
+                    setCreatorRawClicks(null);
                   }}
                   className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-xl transition-all duration-200 hover:shadow-md"
                 >
@@ -1899,285 +1620,6 @@ export function Analytics({
               })()}
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AnalyticsFiltersBar({
-  filters,
-  options,
-  onFilterChange,
-  onClear,
-  hasActive,
-  totalUnfiltered,
-  totalFiltered,
-  compact = false,
-  viewMode,
-  onViewModeChange,
-}: {
-  filters: ClickFilters;
-  options: ReturnType<typeof extractFilterOptions>;
-  onFilterChange: (key: keyof ClickFilters, value: string) => void;
-  onClear: () => void;
-  hasActive: boolean;
-  totalUnfiltered: number;
-  totalFiltered: number;
-  compact?: boolean;
-  viewMode?: AnalyticsViewMode;
-  onViewModeChange?: (mode: AnalyticsViewMode) => void;
-}) {
-  const selectClass =
-    "w-full px-3 py-2 text-sm font-medium border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white hover:border-slate-400 transition-colors";
-
-  const filterFields: {
-    key: keyof ClickFilters;
-    label: string;
-    values: string[];
-    disabled?: boolean;
-  }[] = [
-    { key: "submission", label: "Submission", values: options.submissions },
-    { key: "country", label: "Country", values: options.countries },
-    {
-      key: "state",
-      label: "State",
-      values: options.states,
-      disabled:
-        filters.country !== FILTER_ALL && options.states.length === 0,
-    },
-    {
-      key: "city",
-      label: "City",
-      values: options.cities,
-      disabled:
-        (filters.country !== FILTER_ALL || filters.state !== FILTER_ALL) &&
-        options.cities.length === 0,
-    },
-    { key: "device", label: "Device", values: options.devices },
-    { key: "browser", label: "Browser", values: options.browsers },
-  ];
-
-  if (
-    totalUnfiltered === 0 &&
-    !filterFields.some((f) => f.values.length > 0)
-  ) {
-    return null;
-  }
-
-  return (
-    <div
-      className={`bg-white rounded-2xl shadow-lg border border-slate-200/60 mb-6 sm:mb-8 ${
-        compact ? "p-3 sm:p-4" : "p-4 sm:p-6"
-      }`}
-    >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-violet-500 to-violet-600 rounded-lg">
-            <Filter className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-slate-900">
-              Filters
-            </h3>
-            <p className="text-xs text-slate-600">
-              Showing {totalFiltered} of {totalUnfiltered} clicks
-            </p>
-          </div>
-        </div>
-        {viewMode && onViewModeChange && !compact ? (
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 self-start sm:self-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => onViewModeChange("detailed")}
-              className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition ${
-                viewMode === "detailed"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-800"
-              }`}
-            >
-              Detailed View
-            </button>
-            <button
-              type="button"
-              onClick={() => onViewModeChange("map")}
-              className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition ${
-                viewMode === "map"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-800"
-              }`}
-            >
-              Map View
-            </button>
-          </div>
-        ) : hasActive ? (
-          <button
-            type="button"
-            onClick={onClear}
-            className="text-sm font-semibold text-violet-600 hover:text-violet-800 px-4 py-2 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors border border-violet-200 self-start sm:self-auto shrink-0"
-          >
-            Clear all filters
-          </button>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-        {filterFields.map(({ key, label, values, disabled }) => (
-          <div key={key}>
-            <label
-              htmlFor={`filter-${compact ? "modal-" : ""}${key}`}
-              className="block text-xs font-bold text-slate-700 mb-1.5"
-            >
-              {label}
-            </label>
-            <select
-              id={`filter-${compact ? "modal-" : ""}${key}`}
-              value={filters[key]}
-              disabled={disabled || values.length === 0}
-              onChange={(e) => onFilterChange(key, e.target.value)}
-              className={`${selectClass} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <option value={FILTER_ALL}>
-                All {label}s
-              </option>
-              {values.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
-      </div>
-
-      {hasActive && (
-        <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-slate-100">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-            Active:
-          </span>
-          {filterFields.map(({ key, label }) => {
-            const value = filters[key];
-            if (value === FILTER_ALL) return null;
-            return (
-              <span
-                key={key}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-100 text-violet-800 rounded-full text-xs font-semibold"
-              >
-                {label}: {value}
-                <button
-                  type="button"
-                  onClick={() => onFilterChange(key, FILTER_ALL)}
-                  className="hover:text-violet-950"
-                  aria-label={`Clear ${label} filter`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            );
-          })}
-          <button
-            type="button"
-            onClick={onClear}
-            className="ml-auto text-sm font-semibold text-violet-600 hover:text-violet-800 px-4 py-2 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors border border-violet-200"
-          >
-            Clear all filters
-          </button>
-        </div>
-      )}
-
-    </div>
-  );
-}
-
-function StatsCard({
-  title,
-  data,
-  color,
-}: {
-  title: string;
-  data: Record<string, number>;
-  color: string;
-}) {
-  // Sort entries based on the title
-  const entries = Object.entries(data).sort((a, b) => {
-    // For "Clicks by Submission", sort by submission number in ascending order
-    if (title === "Clicks by Submission") {
-      const aIsNumeric = !isNaN(Number(a[0]));
-      const bIsNumeric = !isNaN(Number(b[0]));
-
-      if (aIsNumeric && bIsNumeric) {
-        return Number(a[0]) - Number(b[0]); // Ascending numeric order
-      }
-      if (aIsNumeric) return -1;
-      if (bIsNumeric) return 1;
-      return a[0].localeCompare(b[0]); // Alphabetical order for non-numeric
-    }
-
-    // For all other cards, sort by count (descending)
-    return b[1] - a[1];
-  });
-  const total = entries.reduce((sum, [, count]) => sum + count, 0);
-
-  const colorMap: Record<string, string> = {
-    blue: "from-blue-500 to-blue-600",
-    emerald: "from-emerald-500 to-emerald-600",
-    orange: "from-orange-500 to-orange-600",
-    cyan: "from-cyan-500 to-cyan-600",
-    amber: "from-amber-500 to-amber-600",
-    violet: "from-violet-500 to-violet-600",
-    green: "from-green-500 to-green-600",
-    slate: "from-slate-500 to-slate-600",
-  };
-
-  return (
-    <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6 hover:shadow-xl transition-shadow duration-300">
-      <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-4 sm:mb-5 flex items-center gap-2">
-        <div
-          className={`w-1 h-6 rounded-full bg-gradient-to-b ${colorMap[color]}`}
-        ></div>
-        {title}
-      </h3>
-      {entries.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-slate-500 text-xs sm:text-sm font-medium">
-            No data available
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3 sm:space-y-4">
-          {entries.map(([key, count], idx) => {
-            const percentage = total > 0 ? (count / total) * 100 : 0;
-            return (
-              <div key={key} className="group">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xs font-bold text-slate-500 flex-shrink-0">
-                      #{idx + 1}
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate">
-                      {key || "Unknown"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    <span className="text-xs text-slate-500 font-medium">
-                      {percentage.toFixed(0)}%
-                    </span>
-                    <span className="text-xs sm:text-sm font-bold text-slate-900 bg-slate-100 px-2 py-1 rounded-lg">
-                      {count}
-                    </span>
-                  </div>
-                </div>
-                <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className={`h-2.5 rounded-full bg-gradient-to-r ${colorMap[color]} transition-all duration-500 ease-out relative`}
-                    style={{ width: `${percentage}%` }}
-                  >
-                    <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

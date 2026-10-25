@@ -204,7 +204,7 @@ CREATE POLICY "Users can delete own project links"
 CREATE POLICY "Anyone can view all links"
   ON links FOR SELECT
   TO anon
-  WITH CHECK (true);
+  USING (true);
 
 -- Create index on link short codes
 CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code);
