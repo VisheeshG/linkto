@@ -11,7 +11,10 @@ import { Analytics } from "@/components/Analytics";
 import { PasswordVerificationModal } from "@/components/PasswordVerificationModal";
 import { useHideBotClicks } from "@/hooks/useHideBotClicks";
 import type { ClickSource } from "@/lib/click-source";
-import { Link2, MousePointerClick, TrendingUp } from "lucide-react";
+import { Link2, MousePointerClick, SearchX, Trophy } from "lucide-react";
+import { PublicShell } from "@/components/public/PublicShell";
+import { Button, EmptyState, LoadingBlock, PageHeader, Skeleton } from "@/components/ui";
+import { formatNumber } from "@/lib/format";
 
 type PublicProject = Pick<Project, "id" | "name" | "description" | "slug">;
 
@@ -201,31 +204,36 @@ export default function PublicProjectPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-600">Loading...</div>
-      </div>
+      <PublicShell>
+        <LoadingBlock label="Loading report">
+          <Skeleton className="mb-2 h-8 w-64" />
+          <Skeleton className="mb-6 h-4 w-80 max-w-full" />
+          <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-4">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-24" />
+            ))}
+          </div>
+          <Skeleton className="mb-3 h-28" />
+          <Skeleton className="h-28" />
+        </LoadingBlock>
+      </PublicShell>
     );
   }
 
   if (error || !project) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-xl mb-4">⚠️</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Project Not Found
-          </h1>
-          <p className="text-gray-600 mb-4">
-            {error || "The requested project could not be found."}
-          </p>
-          {/* <button
-            onClick={() => router.push("/")}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go Home
-          </button> */}
-        </div>
-      </div>
+      <PublicShell>
+        <EmptyState
+          icon={SearchX}
+          title="Report not found"
+          description={
+            error && error !== "The requested project could not be found."
+              ? error
+              : "This link may be mistyped, or the report is no longer shared. Ask the person who sent it for a new link."
+          }
+          className="mt-8"
+        />
+      </PublicShell>
     );
   }
 
@@ -251,101 +259,109 @@ export default function PublicProjectPage() {
     );
   }
 
+  const counts = linkClicks ? (hideBots ? linkClicks.human : linkClicks.total) : undefined;
+  const topLink = counts
+    ? links.reduce<Link | null>(
+        (best, l) => ((counts[l.id] ?? 0) > (best ? counts[best.id] ?? 0 : 0) ? l : best),
+        null
+      )
+    : null;
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-slate-900">{project.name}</h1>
-          {project.description && (
-            <p className="text-slate-600 mt-2">{project.description}</p>
-          )}
+    <PublicShell printable>
+      <PageHeader
+        title={project.name}
+        description={project.description || undefined}
+        meta={
+          <span className="text-xs text-slate-600">
+            Report as of{" "}
+            {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+          </span>
+        }
+      />
+
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 sm:mb-8">
+        <StatCard
+          label={hideBots ? "Genuine clicks" : "Total clicks"}
+          value={hideBots ? stats.humanClicks : stats.totalClicks}
+          icon={MousePointerClick}
+          iconBg="bg-primary-50"
+          iconColor="text-primary-600"
+          sublabel={hideBots && stats.totalClicks !== stats.humanClicks ? "Bots excluded" : undefined}
+        />
+        <StatCard
+          label="Links"
+          value={links.length}
+          icon={Link2}
+          iconBg="bg-sky-50"
+          iconColor="text-sky-600"
+          sublabel={`${platformCount} ${platformCount === 1 ? "platform" : "platforms"}`}
+        />
+        <div className="col-span-2 sm:col-span-1">
+          <StatCard
+            label="Top link"
+            value={topLink && counts?.[topLink.id] ? topLink.link_title : "—"}
+            icon={Trophy}
+            iconBg="bg-amber-50"
+            iconColor="text-amber-600"
+            sublabel={topLink && counts?.[topLink.id] ? `${formatNumber(counts[topLink.id])} clicks` : undefined}
+            title={topLink?.link_title}
+          />
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <StatCard
-            label="Total Links"
-            value={links.length}
-            icon={Link2}
-            iconBg="bg-blue-50"
-            iconColor="text-blue-600"
-          />
-
-          <StatCard
-            label={hideBots ? "Genuine Clicks" : "Total Clicks"}
-            value={hideBots ? stats.humanClicks : stats.totalClicks}
-            icon={MousePointerClick}
-            iconBg="bg-green-50"
-            iconColor="text-green-600"
-          />
-
-          <StatCard
-            label="Platforms"
-            value={platformCount}
-            icon={TrendingUp}
-            iconBg="bg-emerald-50"
-            iconColor="text-emerald-600"
-          />
-        </div>
-
-        {links.length === 0 ? (
-          <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center">
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">
-              No links yet
-            </h3>
-            <p className="text-slate-600">This project has no public links.</p>
+      <section aria-labelledby="links-heading">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 id="links-heading" className="text-lg font-semibold text-slate-900">
+              Links <span className="text-sm font-normal text-slate-600">{links.length}</span>
+            </h2>
+            <p className="text-sm text-slate-600 print-hidden">Open a link to see who clicked, where and when.</p>
           </div>
-        ) : (
-          <>
+          {links.length > 3 && (
             <TitleSearchBar
               value={linkSearch}
               onChange={setLinkSearch}
-              placeholder="Search links by title..."
-              className="mb-6 max-w-md"
+              placeholder="Search links…"
+              className="w-full sm:max-w-xs print-hidden"
             />
-            {filteredLinks.length === 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center shadow-sm">
-                <p className="text-slate-600">
-                  No links match &quot;{linkSearch.trim()}&quot;.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setLinkSearch("")}
-                  className="mt-3 text-sm font-semibold text-blue-600 hover:text-blue-700"
-                >
-                  Clear search
-                </button>
-              </div>
-            ) : (
-              <LinkList
-                links={filteredLinks}
-                onSelectLink={(link) => {
-                  setSelectedLinkId(link.id);
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("link_id", link.id);
-                  window.history.replaceState({}, "", url.toString());
-                }}
-                onDeleteLink={() => {}}
-                projectSlug={project.slug}
-                brandSlug={brandSlug}
-                readOnly
-                enableSelectInReadOnly
-                clickCounts={
-                  linkClicks
-                    ? hideBots
-                      ? linkClicks.human
-                      : linkClicks.total
-                    : undefined
-                }
-                clickCountTitle={
-                  hideBots ? "Genuine clicks (bots hidden)" : "All clicks"
-                }
-              />
-            )}
-          </>
+          )}
+        </div>
+
+        {links.length === 0 ? (
+          <EmptyState icon={Link2} title="No links yet" description="Links will appear here once they're added." />
+        ) : filteredLinks.length === 0 ? (
+          <EmptyState
+            title={`No links match “${linkSearch.trim()}”`}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setLinkSearch("")}>
+                Clear search
+              </Button>
+            }
+          />
+        ) : (
+          <LinkList
+            links={
+              counts
+                ? [...filteredLinks].sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
+                : filteredLinks
+            }
+            onSelectLink={(link) => {
+              setSelectedLinkId(link.id);
+              const url = new URL(window.location.href);
+              url.searchParams.set("link_id", link.id);
+              window.history.replaceState({}, "", url.toString());
+            }}
+            onDeleteLink={() => {}}
+            projectSlug={project.slug}
+            brandSlug={brandSlug}
+            readOnly
+            enableSelectInReadOnly
+            clickCounts={counts}
+            clickCountTitle={hideBots ? "Genuine clicks (bots hidden)" : "All clicks"}
+          />
         )}
-      </div>
-    </div>
+      </section>
+    </PublicShell>
   );
 }
