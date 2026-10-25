@@ -44,6 +44,14 @@ A comprehensive link tracking platform built with Next.js and Supabase that enab
    existing database, classify historical clicks (adds datacenter detection
    and unique-visitor hashes):
 
+   **From GitHub (no local credentials):** add repository secrets
+   `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VISITOR_HASH_SALT` (same
+   value as production) and optionally `IP_API_KEY`, then run the
+   **Backfill bot classification** workflow from the Actions tab — first with
+   "Dry run" ticked, then unticked.
+
+   **Or locally:**
+
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
    VISITOR_HASH_SALT=<same as production> npm run backfill:bots -- --dry-run

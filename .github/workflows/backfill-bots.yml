@@ -1,0 +1,53 @@
+name: Backfill bot classification
+
+# Re-classifies historical clicks (datacenter detection + visitor hashes) by
+# running scripts/backfill-bot-classification.ts on GitHub's servers, so no
+# laptop needs database credentials. Start it from the Actions tab.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VISITOR_HASH_SALT
+# Optional: IP_API_KEY (faster; without it ~45 IP lookups per minute)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (report counts only, change nothing)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: backfill-bots
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # GitHub's maximum. The script is resumable: if a large history does not
+    # finish in time, run the workflow again and it continues where it stopped.
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VISITOR_HASH_SALT: ${{ secrets.VISITOR_HASH_SALT }}
+        run: |
+          missing=0
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY VISITOR_HASH_SALT; do
+            if [ -z "${!name}" ]; then echo "::error::Missing repository secret $name"; missing=1; fi
+          done
+          exit $missing
+      - name: Run backfill
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VISITOR_HASH_SALT: ${{ secrets.VISITOR_HASH_SALT }}
+          IP_API_KEY: ${{ secrets.IP_API_KEY }}
+        run: npm run backfill:bots -- ${{ inputs.dry_run && '--dry-run' || '' }}
