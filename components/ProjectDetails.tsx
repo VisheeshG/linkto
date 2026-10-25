@@ -22,7 +22,7 @@ import { SocialShare } from "./SocialShare";
 import { ProjectPasswordManager } from "./ProjectPasswordManager";
 import { generateUniqueShortCode } from "@/lib/generators";
 import {
-  countClicksForLinkIds,
+  countClicksPerLink,
   fetchAllLinksForProjectId,
 } from "@/lib/supabase-pagination";
 import { canOpenInNativeApp } from "@/lib/mobile-app-redirect";
@@ -54,6 +54,9 @@ function ProjectDetailsContent({
   const [projectUrl, setProjectUrl] = useState("");
   const [accessToken, setAccessToken] = useState<string>("");
   const [hideBots] = useHideBotClicks();
+  const [linkClickCounts, setLinkClickCounts] = useState<
+    Record<string, number> | undefined
+  >(undefined);
   const [formResetKey, setFormResetKey] = useState(0);
   const [linkSearch, setLinkSearch] = useState("");
   const [brandName, setBrandName] = useState<string | null>(null);
@@ -114,14 +117,16 @@ function ProjectDetailsContent({
 
       if (data.length > 0) {
         const linkIds = data.map((l) => l.id);
-        const clickCount = await countClicksForLinkIds(supabase, linkIds, {
+        const counts = await countClicksPerLink(supabase, linkIds, {
           humanOnly: hideBots,
         });
-        setTotalClicks(clickCount);
+        setLinkClickCounts(counts);
+        setTotalClicks(Object.values(counts).reduce((sum, n) => sum + n, 0));
 
         const uniquePlatforms = new Set(data.map((l) => l.platform));
         setPlatformCount(uniquePlatforms.size);
       } else {
+        setLinkClickCounts({});
         setTotalClicks(0);
         setPlatformCount(0);
       }
@@ -638,6 +643,10 @@ function ProjectDetailsContent({
                 onEditLink={setEditingLink}
                 projectSlug={project.slug}
                 brandSlug={brandSlug}
+                clickCounts={linkClickCounts}
+                clickCountTitle={
+                  hideBots ? "Genuine clicks (bots hidden)" : "All clicks"
+                }
               />
             )}
           </>

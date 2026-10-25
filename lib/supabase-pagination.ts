@@ -72,6 +72,29 @@ export async function countClicksForLinkIds(
   return total;
 }
 
+/**
+ * Click count for each link (head-only count queries, a few at a time).
+ * Returns { [linkId]: count }.
+ */
+export async function countClicksPerLink(
+  client: SupabaseClient,
+  linkIds: string[],
+  options?: CountOptions
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  const CONCURRENCY = 6;
+  for (let i = 0; i < linkIds.length; i += CONCURRENCY) {
+    const batch = linkIds.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      batch.map((id) => countClicksForLinkIdChunk(client, [id], options))
+    );
+    batch.forEach((id, idx) => {
+      counts[id] = results[idx];
+    });
+  }
+  return counts;
+}
+
 export async function fetchAllClicksForLinkIds(
   client: SupabaseClient,
   linkIds: string[]

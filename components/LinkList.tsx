@@ -10,6 +10,7 @@ import {
   ExternalLink,
   AlertTriangle,
   Pencil,
+  MousePointerClick,
 } from "lucide-react";
 import { LastEditedLabel } from "./LastEditedLabel";
 
@@ -22,6 +23,10 @@ interface LinkListProps {
   brandSlug?: string | null;
   readOnly?: boolean;
   enableSelectInReadOnly?: boolean;
+  /** Clicks per link id. Undefined while loading (shows a placeholder). */
+  clickCounts?: Record<string, number>;
+  /** Shown as the pill tooltip, e.g. "Genuine clicks (bots hidden)". */
+  clickCountTitle?: string;
 }
 
 export function LinkList({
@@ -33,6 +38,8 @@ export function LinkList({
   brandSlug = null,
   readOnly = false,
   enableSelectInReadOnly = false,
+  clickCounts,
+  clickCountTitle = "Clicks",
 }: LinkListProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
@@ -113,6 +120,19 @@ export function LinkList({
                     {link.link_title}
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 tabular-nums"
+                      title={clickCountTitle}
+                    >
+                      <MousePointerClick className="w-3.5 h-3.5" />
+                      {clickCounts ? (
+                        `${(clickCounts[link.id] ?? 0).toLocaleString()} ${
+                          (clickCounts[link.id] ?? 0) === 1 ? "click" : "clicks"
+                        }`
+                      ) : (
+                        <span className="inline-block h-3 w-12 rounded bg-emerald-100 animate-pulse" />
+                      )}
+                    </span>
                     <span>{link.platform}</span>
                     {link.expires_at &&
                       (new Date(link.expires_at) <= new Date() ? (

@@ -58,6 +58,10 @@ export default function PublicProjectPage() {
   const [error, setError] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalClicks: 0, humanClicks: 0 });
+  const [linkClicks, setLinkClicks] = useState<{
+    total: Record<string, number>;
+    human: Record<string, number>;
+  } | null>(null);
   const [linkSearch, setLinkSearch] = useState("");
   const [brandSlug, setBrandSlug] = useState<string | null>(null);
   const [hideBots] = useHideBotClicks();
@@ -111,6 +115,7 @@ export default function PublicProjectPage() {
       setBrandSlug(data.brandSlug ?? null);
       setLinks(data.links ?? []);
       setStats(data.stats ?? { totalClicks: 0, humanClicks: 0 });
+      setLinkClicks(data.linkClicks ?? null);
 
       // If URL has ?link_id=uuid, preselect that link
       const qId = new URLSearchParams(window.location.search).get("link_id");
@@ -325,6 +330,16 @@ export default function PublicProjectPage() {
                 brandSlug={brandSlug}
                 readOnly
                 enableSelectInReadOnly
+                clickCounts={
+                  linkClicks
+                    ? hideBots
+                      ? linkClicks.human
+                      : linkClicks.total
+                    : undefined
+                }
+                clickCountTitle={
+                  hideBots ? "Genuine clicks (bots hidden)" : "All clicks"
+                }
               />
             )}
           </>
