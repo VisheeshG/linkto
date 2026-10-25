@@ -49,25 +49,32 @@ export type Link = {
   submission_number: string | null;
   open_app_on_mobile?: boolean;
   include_submission_in_url?: boolean;
+  utm_enabled?: boolean;
+  expires_at?: string | null;
   created_at: string;
   updated_at: string;
 };
 
+export type TrafficType = "human" | "bot" | "datacenter" | "suspicious";
+
+/** Columns fetched for analytics (see lib/click-columns.ts). */
 export type LinkClick = {
   id: string;
   link_id: string;
-  platform_name: string | null;
   creator_username: string | null;
   submission_number: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
   country: string | null;
   state: string | null;
   city: string | null;
   device_type: string | null;
   browser: string | null;
   os: string | null;
+  referrer: string | null;
   clicked_at: string;
+  /** Missing on rows fetched before the bot-filtering migration ran. */
+  traffic_type?: TrafficType | null;
+  bot_reason?: string | null;
+  visitor_hash?: string | null;
 };
 
 export type ProjectPassword = {

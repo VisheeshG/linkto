@@ -1,7 +1,10 @@
-import { LinkClick } from "@/lib/supabase";
+import { LinkClick, TrafficType } from "@/lib/supabase";
+import { analyticsToday, parseDateKey, toAnalyticsDateKey } from "@/lib/analytics-time";
+import { isHumanClick } from "@/lib/bot-detection";
 
 export type AggregatedClickAnalytics = {
   totalClicks: number;
+  uniqueVisitors: number;
   clicksByLinkTitle: Record<string, number>;
   clicksByCreator: Record<string, number>;
   clicksBySubmission: Record<string, number>;
@@ -10,10 +13,13 @@ export type AggregatedClickAnalytics = {
   clicksByCity: Record<string, number>;
   clicksByDevice: Record<string, number>;
   clicksByBrowser: Record<string, number>;
+  clicksByOs: Record<string, number>;
+  clicksByReferrer: Record<string, number>;
   clicksByWeek: { week: string; clicks: number }[];
   filteredClicks: LinkClick[];
 };
 
+/** Formats a local Date's calendar fields as "YYYY-MM-DD". */
 export function getDateString(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -21,11 +27,71 @@ export function getDateString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Day bucket of a click, in the analytics time zone. */
+export function getClickDateKey(click: Pick<LinkClick, "clicked_at">): string | null {
+  return click.clicked_at ? toAnalyticsDateKey(click.clicked_at) : null;
+}
+
 function formatDateForDisplay(date: Date): string {
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
+}
+
+function increment(record: Record<string, number>, key: string | null | undefined) {
+  if (key) record[key] = (record[key] || 0) + 1;
+}
+
+/** Hostname of the referring page, or a "direct" label when none was sent. */
+export function referrerLabel(referrer: string | null | undefined): string {
+  if (!referrer) return "Direct / unknown";
+  try {
+    return new URL(referrer).hostname.replace(/^www\./, "") || "Direct / unknown";
+  } catch {
+    return "Direct / unknown";
+  }
+}
+
+/**
+ * Distinct visitors (hashed IP + user agent). Clicks recorded before visitor
+ * hashing existed have no hash and are each counted as one visitor.
+ */
+export function countUniqueVisitors(clicks: LinkClick[]): number {
+  const seen = new Set<string>();
+  let unhashed = 0;
+  for (const click of clicks) {
+    if (click.visitor_hash) seen.add(click.visitor_hash);
+    else unhashed += 1;
+  }
+  return seen.size + unhashed;
+}
+
+/** Counts per dimension for a set of clicks (no date filtering). */
+export function countClicksByDimension(clicks: LinkClick[]) {
+  const result = {
+    clicksByCreator: {} as Record<string, number>,
+    clicksBySubmission: {} as Record<string, number>,
+    clicksByCountry: {} as Record<string, number>,
+    clicksByState: {} as Record<string, number>,
+    clicksByCity: {} as Record<string, number>,
+    clicksByDevice: {} as Record<string, number>,
+    clicksByBrowser: {} as Record<string, number>,
+    clicksByOs: {} as Record<string, number>,
+    clicksByReferrer: {} as Record<string, number>,
+  };
+  for (const click of clicks) {
+    increment(result.clicksByCreator, click.creator_username);
+    increment(result.clicksBySubmission, click.submission_number);
+    increment(result.clicksByCountry, click.country);
+    increment(result.clicksByState, click.state);
+    increment(result.clicksByCity, click.city);
+    increment(result.clicksByDevice, click.device_type);
+    increment(result.clicksByBrowser, click.browser);
+    increment(result.clicksByOs, click.os);
+    increment(result.clicksByReferrer, referrerLabel(click.referrer));
+  }
+  return result;
 }
 
 export function aggregateClicks(
@@ -36,97 +102,42 @@ export function aggregateClicks(
 ): AggregatedClickAnalytics {
   const filteredClicks = filterClicksInDateRange(clicks, startDate, endDate);
 
-  const analyticsData: AggregatedClickAnalytics = {
-    totalClicks: filteredClicks.length,
-    clicksByLinkTitle: {},
-    clicksByCreator: {},
-    clicksBySubmission: {},
-    clicksByCountry: {},
-    clicksByState: {},
-    clicksByCity: {},
-    clicksByDevice: {},
-    clicksByBrowser: {},
-    clicksByWeek: [],
-    filteredClicks,
-  };
-
+  const clicksByLinkTitle: Record<string, number> = {};
   const dailyClicksMap: Record<string, number> = {};
 
-  filteredClicks.forEach((click) => {
-    const linkTitle = linkIdToTitle[click.link_id] ?? "Unknown link";
-    analyticsData.clicksByLinkTitle[linkTitle] =
-      (analyticsData.clicksByLinkTitle[linkTitle] || 0) + 1;
+  for (const click of filteredClicks) {
+    increment(clicksByLinkTitle, linkIdToTitle[click.link_id] ?? "Unknown link");
+    increment(dailyClicksMap, getClickDateKey(click));
+  }
 
-    if (click.creator_username) {
-      analyticsData.clicksByCreator[click.creator_username] =
-        (analyticsData.clicksByCreator[click.creator_username] || 0) + 1;
-    }
-
-    if (click.submission_number) {
-      analyticsData.clicksBySubmission[click.submission_number] =
-        (analyticsData.clicksBySubmission[click.submission_number] || 0) + 1;
-    }
-
-    if (click.country) {
-      analyticsData.clicksByCountry[click.country] =
-        (analyticsData.clicksByCountry[click.country] || 0) + 1;
-    }
-
-    if (click.state) {
-      analyticsData.clicksByState[click.state] =
-        (analyticsData.clicksByState[click.state] || 0) + 1;
-    }
-
-    if (click.city) {
-      analyticsData.clicksByCity[click.city] =
-        (analyticsData.clicksByCity[click.city] || 0) + 1;
-    }
-
-    if (click.device_type) {
-      analyticsData.clicksByDevice[click.device_type] =
-        (analyticsData.clicksByDevice[click.device_type] || 0) + 1;
-    }
-
-    if (click.browser) {
-      analyticsData.clicksByBrowser[click.browser] =
-        (analyticsData.clicksByBrowser[click.browser] || 0) + 1;
-    }
-
-    if (click.clicked_at) {
-      const dateString = getDateString(new Date(click.clicked_at));
-      dailyClicksMap[dateString] = (dailyClicksMap[dateString] || 0) + 1;
-    }
-  });
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const daysDiff =
-    Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
+  const start = parseDateKey(startDate);
+  const end = parseDateKey(endDate);
   const rangeDays: { week: string; clicks: number }[] = [];
-  for (let i = 0; i < daysDiff; i++) {
-    const dayDate = new Date(start);
-    dayDate.setDate(start.getDate() + i);
-    const dateString = getDateString(dayDate);
+  for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
     rangeDays.push({
-      week: formatDateForDisplay(dayDate),
-      clicks: dailyClicksMap[dateString] || 0,
+      week: formatDateForDisplay(day),
+      clicks: dailyClicksMap[getDateString(day)] || 0,
     });
   }
 
-  analyticsData.clicksByWeek = rangeDays;
-  return analyticsData;
+  return {
+    totalClicks: filteredClicks.length,
+    uniqueVisitors: countUniqueVisitors(filteredClicks),
+    clicksByLinkTitle,
+    ...countClicksByDimension(filteredClicks),
+    clicksByWeek: rangeDays,
+    filteredClicks,
+  };
 }
 
-export function getDefaultWeekDateRange(): { startDate: string; endDate: string } {
-  const today = new Date();
+export function getDefaultWeekDateRange(
+  today: Date = analyticsToday()
+): { startDate: string; endDate: string } {
   const day = today.getDay();
-  const mondayDiff = today.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(today);
-  monday.setDate(mondayDiff);
-  const sundayDiff = today.getDate() - day + (day === 0 ? 0 : 7);
-  const sunday = new Date(today);
-  sunday.setDate(sundayDiff);
+  monday.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
 
   return {
     startDate: getDateString(monday),
@@ -161,8 +172,41 @@ export function filterClicksInDateRange(
   endDate: string
 ): LinkClick[] {
   return clicks.filter((click) => {
-    if (!click.clicked_at) return false;
-    const dateString = getDateString(new Date(click.clicked_at));
-    return dateString >= startDate && dateString <= endDate;
+    const dateString = getClickDateKey(click);
+    return !!dateString && dateString >= startDate && dateString <= endDate;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Bot filtering
+// ---------------------------------------------------------------------------
+
+/** Drops non-human clicks when `hideBots` is on. */
+export function filterBotClicks(clicks: LinkClick[], hideBots: boolean): LinkClick[] {
+  return hideBots ? clicks.filter(isHumanClick) : clicks;
+}
+
+export type TrafficSummary = {
+  total: number;
+  byType: Record<TrafficType, number>;
+  /** Reasons non-human clicks were flagged, most common first. */
+  topReasons: BreakdownEntry[];
+};
+
+export function summarizeTraffic(clicks: LinkClick[]): TrafficSummary {
+  const byType: Record<TrafficType, number> = {
+    human: 0,
+    bot: 0,
+    datacenter: 0,
+    suspicious: 0,
+  };
+  const reasons: Record<string, number> = {};
+
+  for (const click of clicks) {
+    const type: TrafficType = click.traffic_type ?? "human";
+    byType[type] += 1;
+    if (type !== "human") increment(reasons, click.bot_reason || "Unclassified");
+  }
+
+  return { total: clicks.length, byType, topReasons: topEntries(reasons, 6) };
 }

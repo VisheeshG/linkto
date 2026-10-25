@@ -11,7 +11,10 @@ import { NewProjectForm } from "./NewProjectForm";
 import { BrandAnalyticsPanel } from "./BrandAnalyticsPanel";
 import { matchesTitleQuery } from "@/lib/search";
 import { isValidSlug } from "@/lib/slug-utils";
-import { isBrandSlugUniqueForUser } from "@/lib/generators";
+import {
+  isBrandSlugUniqueForUser,
+  isProjectSlugUnique,
+} from "@/lib/generators";
 import { LastEditedLabel } from "./LastEditedLabel";
 import {
   fetchStatsForProjectIds,
@@ -19,6 +22,7 @@ import {
 } from "@/lib/project-stats";
 import { ArrowLeft, Plus, Briefcase, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
+import { useHideBotClicks } from "@/hooks/useHideBotClicks";
 
 interface BrandDetailProps {
   brandId: string;
@@ -47,6 +51,7 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
     [projects, brandId]
   );
 
+  const [hideBots] = useHideBotClicks();
   const [projectStatsMap, setProjectStatsMap] = useState<
     Record<string, { linkCount: number; clickCount: number }>
   >({});
@@ -60,14 +65,14 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
       return;
     }
 
-    void fetchStatsMapForProjectIds(ids).then((map) => {
+    void fetchStatsMapForProjectIds(ids, { humanOnly: hideBots }).then((map) => {
       if (!cancelled) setProjectStatsMap(map);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [brandProjects]);
+  }, [brandProjects, hideBots]);
 
   const filteredProjectsWithStats = useMemo((): ProjectWithStats[] => {
     return brandProjects
@@ -121,7 +126,7 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
       const ids = allProjects
         .filter((p) => p.brand_id === brandId)
         .map((p) => p.id);
-      const stats = await fetchStatsForProjectIds(ids);
+      const stats = await fetchStatsForProjectIds(ids, { humanOnly: hideBots });
       setTotalLinks(stats.linkCount);
       setTotalClicks(stats.clickCount);
     } catch (error) {
@@ -130,7 +135,7 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
       setLoading(false);
       setStatsLoading(false);
     }
-  }, [user, brandId]);
+  }, [user, brandId, hideBots]);
 
   useEffect(() => {
     loadData();
@@ -234,13 +239,7 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
       }
 
       const trimmedSlug = slug.trim();
-      const { data: existingSlug } = await supabase
-        .from("projects")
-        .select("id")
-        .eq("slug", trimmedSlug)
-        .single();
-
-      if (existingSlug) {
+      if (!(await isProjectSlugUnique(trimmedSlug, supabase))) {
         toast.error(`Project slug "${trimmedSlug}" is already taken.`);
         return false;
       }
@@ -500,6 +499,7 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
           totalProjects={brandProjects.length}
           totalLinks={totalLinks}
           totalClicks={totalClicks}
+          clicksLabel={hideBots ? "Genuine Clicks" : "Total Clicks"}
           loading={statsLoading}
         />
 

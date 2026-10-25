@@ -15,11 +15,15 @@ import {
   fetchStatsForProjectIds,
   fetchStatsMapForProjectIds,
 } from "@/lib/project-stats";
-import { generateUniqueBrandSlug } from "@/lib/generators";
+import {
+  generateUniqueBrandSlug,
+  isProjectSlugUnique,
+} from "@/lib/generators";
 import { isValidSlug, slugifyName } from "@/lib/slug-utils";
 import { LogOut, Plus, Briefcase } from "lucide-react";
 import toast from "react-hot-toast";
 import { BrandLogo } from "@/components/BrandLogo";
+import { useHideBotClicks } from "@/hooks/useHideBotClicks";
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -46,6 +50,7 @@ export function Dashboard() {
   );
 
   const [brandsWithStats, setBrandsWithStats] = useState<BrandWithStats[]>([]);
+  const [hideBots] = useHideBotClicks();
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +60,8 @@ export function Dashboard() {
         matchedBrands.map(async (brand) => {
           const brandProjects = projects.filter((p) => p.brand_id === brand.id);
           const stats = await fetchStatsForProjectIds(
-            brandProjects.map((p) => p.id)
+            brandProjects.map((p) => p.id),
+            { humanOnly: hideBots }
           );
           return {
             ...brand,
@@ -77,7 +83,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [matchedBrands, projects]);
+  }, [matchedBrands, projects, hideBots]);
 
   const [unbrandedStatsMap, setUnbrandedStatsMap] = useState<
     Record<string, { linkCount: number; clickCount: number }>
@@ -92,14 +98,14 @@ export function Dashboard() {
       return;
     }
 
-    void fetchStatsMapForProjectIds(ids).then((map) => {
+    void fetchStatsMapForProjectIds(ids, { humanOnly: hideBots }).then((map) => {
       if (!cancelled) setUnbrandedStatsMap(map);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [unbrandedProjects]);
+  }, [unbrandedProjects, hideBots]);
 
   const filteredUnbrandedWithStats = useMemo((): ProjectWithStats[] => {
     return unbrandedProjects
@@ -114,7 +120,9 @@ export function Dashboard() {
   const loadDashboardStats = useCallback(async (projectIds: string[]) => {
     setStatsLoading(true);
     try {
-      const stats = await fetchStatsForProjectIds(projectIds);
+      const stats = await fetchStatsForProjectIds(projectIds, {
+        humanOnly: hideBots,
+      });
       setTotalLinks(stats.linkCount);
       setTotalClicks(stats.clickCount);
     } catch (error) {
@@ -122,7 +130,7 @@ export function Dashboard() {
     } finally {
       setStatsLoading(false);
     }
-  }, []);
+  }, [hideBots]);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -302,13 +310,7 @@ export function Dashboard() {
         return false;
       }
 
-      const { data: existingSlug, error: slugError } = await supabase
-        .from("projects")
-        .select("id")
-        .eq("slug", trimmedSlug)
-        .single();
-
-      if (!slugError && existingSlug) {
+      if (!(await isProjectSlugUnique(trimmedSlug, supabase))) {
         toast.error(
           `Project slug "${trimmedSlug}" is already taken. Choose a different slug.`,
           { duration: 5000 }
@@ -488,6 +490,7 @@ export function Dashboard() {
           totalProjects={projects.length}
           totalLinks={totalLinks}
           totalClicks={totalClicks}
+          clicksLabel={hideBots ? "Genuine Clicks" : "Total Clicks"}
           loading={statsLoading}
         />
 

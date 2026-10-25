@@ -1,5 +1,10 @@
 import type { LinkClick } from "@/lib/supabase";
-import { getDateString, getDefaultWeekDateRange } from "@/lib/click-aggregation";
+import {
+  getClickDateKey,
+  getDateString,
+  getDefaultWeekDateRange,
+} from "@/lib/click-aggregation";
+import { analyticsToday } from "@/lib/analytics-time";
 
 export type DateRangePreset =
   | "all_time"
@@ -28,7 +33,7 @@ export const DATE_RANGE_PRESET_OPTIONS: {
 ];
 
 export function getTodayDateString(): string {
-  return getDateString(new Date());
+  return getDateString(analyticsToday());
 }
 
 export function getAllTimeDateRange(clicks: LinkClick[]): {
@@ -42,9 +47,8 @@ export function getAllTimeDateRange(clicks: LinkClick[]): {
 
   let startDate = endDate;
   for (const click of clicks) {
-    if (!click.clicked_at) continue;
-    const d = getDateString(new Date(click.clicked_at));
-    if (d < startDate) startDate = d;
+    const d = getClickDateKey(click);
+    if (d && d < startDate) startDate = d;
   }
   return { startDate, endDate };
 }
@@ -61,7 +65,7 @@ export function resolveDateRangePreset(
   preset: DateRangePreset,
   clicks: LinkClick[] = []
 ): { startDate: string; endDate: string } {
-  const today = new Date();
+  const today = analyticsToday();
   const todayStr = getDateString(today);
 
   switch (preset) {
@@ -73,7 +77,7 @@ export function resolveDateRangePreset(
         endDate: todayStr,
       };
     case "this_week":
-      return getDefaultWeekDateRange();
+      return getDefaultWeekDateRange(today);
     case "yesterday": {
       const y = new Date(today);
       y.setDate(y.getDate() - 1);
@@ -101,7 +105,7 @@ export function resolveDateRangePreset(
       };
     case "custom":
     default:
-      return getDefaultWeekDateRange();
+      return getDefaultWeekDateRange(today);
   }
 }
 

@@ -22,11 +22,16 @@ import { ProjectPasswordManager } from "./ProjectPasswordManager";
 import { generateUniqueShortCode } from "@/lib/generators";
 import {
   countClicksForLinkIds,
-  deleteAllClicksForLinkId,
   fetchAllLinksForProjectId,
 } from "@/lib/supabase-pagination";
 import { canOpenInNativeApp } from "@/lib/mobile-app-redirect";
 import toast from "react-hot-toast";
+import { useHideBotClicks } from "@/hooks/useHideBotClicks";
+import {
+  LinkAdvancedOptions,
+  LinkExtras,
+  localInputToIso,
+} from "./LinkAdvancedOptions";
 
 interface ProjectDetailsProps {
   project: Project;
@@ -47,6 +52,7 @@ function ProjectDetailsContent({
   const [platformCount, setPlatformCount] = useState(0);
   const [projectUrl, setProjectUrl] = useState("");
   const [accessToken, setAccessToken] = useState<string>("");
+  const [hideBots] = useHideBotClicks();
   const [formResetKey, setFormResetKey] = useState(0);
   const [linkSearch, setLinkSearch] = useState("");
   const [brandName, setBrandName] = useState<string | null>(null);
@@ -107,7 +113,9 @@ function ProjectDetailsContent({
 
       if (data.length > 0) {
         const linkIds = data.map((l) => l.id);
-        const clickCount = await countClicksForLinkIds(supabase, linkIds);
+        const clickCount = await countClicksForLinkIds(supabase, linkIds, {
+          humanOnly: hideBots,
+        });
         setTotalClicks(clickCount);
 
         const uniquePlatforms = new Set(data.map((l) => l.platform));
@@ -121,7 +129,7 @@ function ProjectDetailsContent({
     } finally {
       setLoading(false);
     }
-  }, [project]);
+  }, [project, hideBots]);
 
   useEffect(() => {
     loadLinks();
@@ -270,7 +278,8 @@ function ProjectDetailsContent({
     destinationUrl: string,
     shortCode: string,
     openAppOnMobile: boolean,
-    includeSubmissionInUrl: boolean
+    includeSubmissionInUrl: boolean,
+    extras: LinkExtras
   ) => {
     try {
       // Check if destination URL already exists in this project
@@ -323,6 +332,8 @@ function ProjectDetailsContent({
           submission_number: submissionNumber,
           open_app_on_mobile: openAppOnMobile,
           include_submission_in_url: includeSubmissionInUrl,
+          utm_enabled: extras.utm_enabled,
+          expires_at: extras.expires_at,
         })
         .select()
         .single();
@@ -349,22 +360,9 @@ function ProjectDetailsContent({
 
   const handleDeleteLink = async (linkId: string) => {
     try {
-      console.log("Starting deletion for link:", linkId);
-
-      const clicksCount = await deleteAllClicksForLinkId(supabase, linkId);
-      console.log(`Deleted ${clicksCount} link_clicks`);
-
-      // Then delete the link itself
-      const { error, count: linkCount } = await supabase
-        .from("links")
-        .delete({ count: "exact" })
-        .eq("id", linkId);
-
-      if (error) {
-        console.error("Error deleting link:", error);
-        throw error;
-      }
-      console.log(`Deleted ${linkCount} link(s)`);
+      // Click data is removed by ON DELETE CASCADE on link_clicks.link_id.
+      const { error } = await supabase.from("links").delete().eq("id", linkId);
+      if (error) throw error;
 
       setLinks(links.filter((l) => l.id !== linkId));
       if (selectedLink?.id === linkId) {
@@ -560,7 +558,7 @@ function ProjectDetailsContent({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  Total Clicks
+                  {hideBots ? "Genuine Clicks" : "Total Clicks"}
                 </p>
                 <p className="text-3xl sm:text-4xl font-bold text-slate-900">
                   {totalClicks}
@@ -770,7 +768,8 @@ function NewLinkForm({
     destinationUrl: string,
     shortCode: string,
     openAppOnMobile: boolean,
-    includeSubmissionInUrl: boolean
+    includeSubmissionInUrl: boolean,
+    extras: LinkExtras
   ) => Promise<boolean>;
   onCancel: () => void;
 }) {
@@ -780,6 +779,8 @@ function NewLinkForm({
   const [shortCode, setShortCode] = useState("");
   const [openAppOnMobile, setOpenAppOnMobile] = useState(false);
   const [includeSubmissionInUrl, setIncludeSubmissionInUrl] = useState(false);
+  const [utmEnabled, setUtmEnabled] = useState(false);
+  const [expiresAt, setExpiresAt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -841,7 +842,8 @@ function NewLinkForm({
         destinationUrl,
         shortCode,
         openAppOnMobile,
-        includeSubmissionInUrl
+        includeSubmissionInUrl,
+        { utm_enabled: utmEnabled, expires_at: localInputToIso(expiresAt) }
       );
     } finally {
       setIsSubmitting(false);
@@ -974,6 +976,14 @@ function NewLinkForm({
             </span>
           </label>
         </div>
+
+        <LinkAdvancedOptions
+          idPrefix="new-link"
+          utmEnabled={utmEnabled}
+          onUtmEnabledChange={setUtmEnabled}
+          expiresAt={expiresAt}
+          onExpiresAtChange={setExpiresAt}
+        />
 
         <div>
           <label

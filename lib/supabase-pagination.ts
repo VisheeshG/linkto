@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Link, LinkClick } from "@/lib/supabase";
+import { CLICK_ANALYTICS_COLUMNS } from "@/lib/click-columns";
 
 /** PostgREST default max rows per request */
 export const SUPABASE_PAGE_SIZE = 1000;
@@ -30,16 +31,27 @@ export async function fetchAllPages<T>(queryPage: PageQuery<T>): Promise<T[]> {
 
 const LINK_ID_IN_CHUNK = 80;
 
+type CountOptions = {
+  /** Only count clicks classified as human (excludes bots / datacenter / suspicious). */
+  humanOnly?: boolean;
+};
+
 async function countClicksForLinkIdChunk(
   client: SupabaseClient,
-  linkIds: string[]
+  linkIds: string[],
+  options?: CountOptions
 ): Promise<number> {
   if (linkIds.length === 0) return 0;
 
-  const { count, error } = await client
+  let query = client
     .from("link_clicks")
-    .select("*", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .in("link_id", linkIds);
+  if (options?.humanOnly) {
+    query = query.eq("traffic_type", "human");
+  }
+
+  const { count, error } = await query;
 
   if (error) throw error;
   return count ?? 0;
@@ -47,14 +59,15 @@ async function countClicksForLinkIdChunk(
 
 export async function countClicksForLinkIds(
   client: SupabaseClient,
-  linkIds: string[]
+  linkIds: string[],
+  options?: CountOptions
 ): Promise<number> {
   if (linkIds.length === 0) return 0;
 
   let total = 0;
   for (let i = 0; i < linkIds.length; i += LINK_ID_IN_CHUNK) {
     const chunk = linkIds.slice(i, i + LINK_ID_IN_CHUNK);
-    total += await countClicksForLinkIdChunk(client, chunk);
+    total += await countClicksForLinkIdChunk(client, chunk, options);
   }
   return total;
 }
@@ -71,7 +84,7 @@ export async function fetchAllClicksForLinkIds(
     const chunkClicks = await fetchAllPages(async (from, to) =>
       client
         .from("link_clicks")
-        .select("*")
+        .select(CLICK_ANALYTICS_COLUMNS)
         .in("link_id", chunk)
         .order("clicked_at", { ascending: false })
         .range(from, to)
@@ -94,7 +107,7 @@ export async function fetchAllClicksForLinkId(
   return fetchAllPages(async (from, to) => {
     let query = client
       .from("link_clicks")
-      .select("*")
+      .select(CLICK_ANALYTICS_COLUMNS)
       .eq("link_id", linkId)
       .order("clicked_at", { ascending: false });
 
@@ -179,56 +192,7 @@ export async function fetchAllLinkIdsForProjectIds(
   return rows.map((r) => r.id);
 }
 
-/** Delete clicks in batches when a single link has more than the API row cap. */
-export async function deleteAllClicksForLinkId(
-  client: SupabaseClient,
-  linkId: string
-): Promise<number> {
-  let totalDeleted = 0;
-
-  while (true) {
-    const { data, error: selectError } = await client
-      .from("link_clicks")
-      .select("id")
-      .eq("link_id", linkId)
-      .limit(SUPABASE_PAGE_SIZE);
-
-    if (selectError) throw selectError;
-    if (!data?.length) break;
-
-    const ids = data.map((r) => r.id);
-    const { error: deleteError, count } = await client
-      .from("link_clicks")
-      .delete({ count: "exact" })
-      .in("id", ids);
-
-    if (deleteError) throw deleteError;
-    totalDeleted += count ?? ids.length;
-
-    if (data.length < SUPABASE_PAGE_SIZE) break;
-  }
-
-  return totalDeleted;
-}
-
-/** Delete clicks for many links (e.g. project delete). Chunks link IDs to stay within query limits. */
-export async function deleteAllClicksForLinkIds(
-  client: SupabaseClient,
-  linkIds: string[]
-): Promise<void> {
-  const LINK_ID_CHUNK = 100;
-
-  for (let i = 0; i < linkIds.length; i += LINK_ID_CHUNK) {
-    const chunk = linkIds.slice(i, i + LINK_ID_CHUNK);
-    const { error } = await client
-      .from("link_clicks")
-      .delete()
-      .in("link_id", chunk);
-
-    if (error) throw error;
-  }
-}
-
+/** The archive table has no foreign key to links, so it is not cascaded. */
 export async function deleteAllArchivedClicksForLinkIds(
   client: SupabaseClient,
   linkIds: string[]

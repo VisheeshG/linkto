@@ -14,8 +14,14 @@ const emptyStats = (): ProjectStats => ({ linkCount: 0, clickCount: 0 });
 
 export { fetchAllClicksForLinkIds };
 
+type StatsOptions = {
+  /** Count only clicks classified as human ("Hide bot clicks"). */
+  humanOnly?: boolean;
+};
+
 export async function fetchStatsForProjectIds(
-  projectIds: string[]
+  projectIds: string[],
+  options?: StatsOptions
 ): Promise<ProjectStats> {
   if (projectIds.length === 0) {
     return emptyStats();
@@ -30,13 +36,15 @@ export async function fetchStatsForProjectIds(
 
   const clickCount = await countClicksForLinkIds(
     supabase,
-    allLinks.map((l) => l.id)
+    allLinks.map((l) => l.id),
+    options
   );
   return { linkCount, clickCount };
 }
 
 export async function fetchStatsMapForProjectIds(
-  projectIds: string[]
+  projectIds: string[],
+  options?: StatsOptions
 ): Promise<Record<string, ProjectStats>> {
   const result: Record<string, ProjectStats> = {};
   for (const id of projectIds) {
@@ -61,7 +69,8 @@ export async function fetchStatsMapForProjectIds(
     Object.entries(linkIdsByProject).map(async ([projectId, linkIds]) => {
       result[projectId].clickCount = await countClicksForLinkIds(
         supabase,
-        linkIds
+        linkIds,
+        options
       );
     })
   );

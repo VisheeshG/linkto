@@ -13,9 +13,13 @@ import {
   aggregateClicks,
   topEntries,
   allEntries,
+  filterBotClicks,
   filterClicksInDateRange,
+  summarizeTraffic,
   type BreakdownEntry,
 } from "@/lib/click-aggregation";
+import { useHideBotClicks } from "@/hooks/useHideBotClicks";
+import { BotFilterBar } from "./BotFilterBar";
 import { formatDateRangeLabel } from "@/lib/analytics-date-range";
 import {
   ANALYTICS_DATE_RANGE_STORAGE_KEYS,
@@ -34,6 +38,7 @@ import {
   LineChart,
   Check,
   ChevronRight,
+  Share2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { buildTrackingUrlTemplate } from "@/lib/tracking-url";
@@ -651,8 +656,13 @@ export function BrandAnalyticsPanel({
   brandSlug = null,
 }: BrandAnalyticsPanelProps) {
   const [links, setLinks] = useState<Link[]>([]);
-  const [clicks, setClicks] = useState<LinkClick[]>([]);
+  const [allClicks, setClicks] = useState<LinkClick[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hideBots, setHideBots] = useHideBotClicks();
+  const clicks = useMemo(
+    () => filterBotClicks(allClicks, hideBots),
+    [allClicks, hideBots]
+  );
   const {
     rangePreset,
     startDate,
@@ -714,6 +724,11 @@ export function BrandAnalyticsPanel({
     [clicks, linkIdToTitle, startDate, endDate]
   );
 
+  const trafficSummary = useMemo(
+    () => summarizeTraffic(filterClicksInDateRange(allClicks, startDate, endDate)),
+    [allClicks, startDate, endDate]
+  );
+
   const dateLabel = useMemo(
     () => formatDateRangeLabel(startDate, endDate),
     [startDate, endDate]
@@ -746,6 +761,7 @@ export function BrandAnalyticsPanel({
       countries: allEntries(analytics.clicksByCountry),
       devices: allEntries(analytics.clicksByDevice),
       browsers: allEntries(analytics.clicksByBrowser),
+      referrers: allEntries(analytics.clicksByReferrer),
     }),
     [analytics]
   );
@@ -775,6 +791,12 @@ export function BrandAnalyticsPanel({
 
   return (
     <section className="space-y-8">
+      <BotFilterBar
+        hideBots={hideBots}
+        onChange={setHideBots}
+        summary={trafficSummary}
+      />
+
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-6">
           <div>
@@ -782,7 +804,9 @@ export function BrandAnalyticsPanel({
               Combined Analytics
             </h3>
             <p className="text-sm text-slate-600 mt-1">
-              {dateLabel} · {analytics.totalClicks.toLocaleString()} clicks in
+              {dateLabel} · {analytics.totalClicks.toLocaleString()} clicks
+              {" · "}
+              {analytics.uniqueVisitors.toLocaleString()} unique visitors in
               range
             </p>
           </div>
@@ -813,7 +837,7 @@ export function BrandAnalyticsPanel({
         <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3">
           Breakdown
         </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <LinkTitlesSummaryCard
             previewRows={linkPreview}
             allRows={linkClickRows}
@@ -854,6 +878,17 @@ export function BrandAnalyticsPanel({
             }}
             previewItems={topEntries(analytics.clicksByBrowser, PREVIEW_LIMIT)}
             allItems={breakdowns.browsers}
+          />
+          <SummaryCard
+            config={{
+              title: "Top referrers",
+              icon: Share2,
+              iconClass: "text-blue-600",
+              iconBg: "bg-blue-50",
+              accent: "blue",
+            }}
+            previewItems={topEntries(analytics.clicksByReferrer, PREVIEW_LIMIT)}
+            allItems={breakdowns.referrers}
           />
         </div>
       </div>

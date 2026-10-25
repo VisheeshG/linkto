@@ -18,24 +18,8 @@ export default function ProjectPage() {
 
   useEffect(() => {
     if (!loading && !user && projectId) {
-      (async () => {
-        try {
-          // If not authenticated, redirect to public project slug page
-          const { data: publicProject } = await supabase
-            .from("projects")
-            .select("slug")
-            .eq("id", projectId)
-            .single();
-
-          if (publicProject?.slug) {
-            router.replace(`/${publicProject.slug}`);
-          } else {
-            router.replace("/login");
-          }
-        } catch {
-          router.replace("/login");
-        }
-      })();
+      // Projects are private to their owner; anonymous visitors log in first.
+      router.replace("/login");
     }
   }, [loading, user, router, projectId]);
 

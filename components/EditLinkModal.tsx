@@ -5,8 +5,14 @@ import { Link } from "@/lib/supabase";
 import { canOpenInNativeApp } from "@/lib/mobile-app-redirect";
 import { Link2 } from "lucide-react";
 import toast from "react-hot-toast";
+import {
+  LinkAdvancedOptions,
+  LinkExtras,
+  isoToLocalInput,
+  localInputToIso,
+} from "./LinkAdvancedOptions";
 
-export interface LinkEditPayload {
+export interface LinkEditPayload extends LinkExtras {
   link_title: string;
   platform: string;
   destination_url: string;
@@ -30,6 +36,8 @@ export function EditLinkModal({ link, onSave, onClose }: EditLinkModalProps) {
   const [includeSubmissionInUrl, setIncludeSubmissionInUrl] = useState(
     link.include_submission_in_url ?? false
   );
+  const [utmEnabled, setUtmEnabled] = useState(link.utm_enabled ?? false);
+  const [expiresAt, setExpiresAt] = useState(isoToLocalInput(link.expires_at));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -38,6 +46,8 @@ export function EditLinkModal({ link, onSave, onClose }: EditLinkModalProps) {
     setDestinationUrl(link.destination_url);
     setOpenAppOnMobile(link.open_app_on_mobile ?? false);
     setIncludeSubmissionInUrl(link.include_submission_in_url ?? false);
+    setUtmEnabled(link.utm_enabled ?? false);
+    setExpiresAt(isoToLocalInput(link.expires_at));
   }, [link]);
 
   useEffect(() => {
@@ -78,6 +88,8 @@ export function EditLinkModal({ link, onSave, onClose }: EditLinkModalProps) {
         destination_url: trimmedUrl,
         open_app_on_mobile: openAppOnMobile,
         include_submission_in_url: includeSubmissionInUrl,
+        utm_enabled: utmEnabled,
+        expires_at: localInputToIso(expiresAt),
       });
       if (ok) onClose();
     } finally {
@@ -188,6 +200,14 @@ export function EditLinkModal({ link, onSave, onClose }: EditLinkModalProps) {
               </span>
             </label>
           </div>
+
+          <LinkAdvancedOptions
+            idPrefix="edit-link"
+            utmEnabled={utmEnabled}
+            onUtmEnabledChange={setUtmEnabled}
+            expiresAt={expiresAt}
+            onExpiresAtChange={setExpiresAt}
+          />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-5">

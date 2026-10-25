@@ -22,10 +22,10 @@ CREATE INDEX IF NOT EXISTS idx_link_clicks_link_country
 CREATE INDEX IF NOT EXISTS idx_link_clicks_link_device 
   ON link_clicks(link_id, device_type);
 
--- Partial index for recent data (most common queries)
-CREATE INDEX IF NOT EXISTS idx_link_clicks_recent 
-  ON link_clicks(link_id, clicked_at DESC)
-  WHERE clicked_at > NOW() - INTERVAL '90 days';
+-- Index for recent-data queries. (A partial index on NOW() is not allowed:
+-- index predicates must be IMMUTABLE, which made this migration fail.)
+CREATE INDEX IF NOT EXISTS idx_link_clicks_recent
+  ON link_clicks(link_id, clicked_at DESC);
 
 -- 2. Create materialized view for daily aggregated analytics
 CREATE MATERIALIZED VIEW IF NOT EXISTS link_analytics_daily AS

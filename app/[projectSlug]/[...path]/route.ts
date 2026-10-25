@@ -1,20 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   handleTrackingRedirect,
+  linkNotFoundResponse,
   resolveLinkByBrandProjectAndShortCode,
-  resolveLinkByProjectAndShortCode,
+  resolveLinkByProjectSlugAndShortCode,
 } from "@/lib/tracking-redirect";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 /**
  * Tracking redirects (single dynamic tree to satisfy Next.js segment naming):
  * - Branded: /{brandSlug}/{projectSlug}/{shortCode}/{creator}[/sub1]
  * - Legacy:  /{projectSlug}/{shortCode}/{creator}[/sub1]
+ *
+ * HEAD requests are served by this GET handler too; they are recorded and
+ * classified as bot traffic.
  */
 export async function GET(
   request: NextRequest,
@@ -28,19 +27,15 @@ export async function GET(
   }
 ) {
   try {
+    const supabase = getSupabaseAdmin();
     const { projectSlug: firstSegment, path } = await params;
 
     if (path.length >= 3) {
-      const brandSlug = firstSegment;
-      const nestedProjectSlug = path[0];
-      const shortCode = path[1];
-      const additionalParams = path.slice(2);
-
       const brandedLink = await resolveLinkByBrandProjectAndShortCode(
         supabase,
-        brandSlug,
-        nestedProjectSlug,
-        shortCode
+        firstSegment,
+        path[0],
+        path[1]
       );
 
       if (brandedLink) {
@@ -48,42 +43,24 @@ export async function GET(
           request,
           supabase,
           brandedLink,
-          additionalParams
+          path.slice(2)
         );
       }
     }
 
-    const shortCode = path[0];
-    const additionalParams = path.slice(1);
-
-    const { data: projectData } = await supabase
-      .from("projects")
-      .select("id")
-      .eq("slug", firstSegment)
-      .single();
-
-    if (!projectData) {
-      return NextResponse.redirect("about:blank", 307);
-    }
-
-    const linkData = await resolveLinkByProjectAndShortCode(
+    const linkData = await resolveLinkByProjectSlugAndShortCode(
       supabase,
-      projectData.id,
-      shortCode
+      firstSegment,
+      path[0]
     );
 
     if (!linkData) {
-      return NextResponse.redirect("about:blank", 307);
+      return linkNotFoundResponse();
     }
 
-    return handleTrackingRedirect(
-      request,
-      supabase,
-      linkData,
-      additionalParams
-    );
+    return handleTrackingRedirect(request, supabase, linkData, path.slice(1));
   } catch (error) {
     console.error("Redirect error:", error);
-    return NextResponse.redirect("about:blank", 307);
+    return linkNotFoundResponse();
   }
 }

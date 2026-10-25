@@ -19,20 +19,73 @@ A comprehensive link tracking platform built with Next.js and Supabase that enab
    ```
 
 3. **Set up environment variables**
-   Create a `.env.local` file:
+   Copy `.env.example` to `.env.local` and fill it in:
 
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+   IP_API_KEY=                     # recommended in production (ip-api.com Pro)
+   PROJECT_ACCESS_SECRET=          # recommended: random secret
+   VISITOR_HASH_SALT=              # recommended: random secret
+   NEXT_PUBLIC_ANALYTICS_TIME_ZONE=Asia/Kolkata
    ```
 
-   The service role key is required for deleting projects (server-side cleanup of related data). Find it in Supabase Dashboard → Project Settings → API.
+   `SUPABASE_SERVICE_ROLE_KEY` is **required**: tracking redirects record
+   clicks with it, and shared project pages, password checks and project
+   deletion use it. Find it in Supabase Dashboard → Project Settings → API.
+   It is only used server-side.
 
 4. **Run database migrations**
-   Apply migrations in `supabase/migrations/` to your Supabase project, including:
-   - `20250601000000_add_brands.sql` — brands folder
-   - `20250602000000_brand_slugs_and_tracking_urls.sql` — brand URL slugs and optional `/sub1` in links
+   Apply every file in `supabase/migrations/` in filename order (for example
+   with `supabase db push`). A fresh database can be built from them.
+
+   After applying `20261025000000_bot_filtering_and_security.sql` to an
+   existing database, classify historical clicks (adds datacenter detection
+   and unique-visitor hashes):
+
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+   VISITOR_HASH_SALT=<same as production> npm run backfill:bots -- --dry-run
+   # then run again without --dry-run
+   ```
+
+5. **Run the dev server**
+
+   ```bash
+   npm run dev
+   ```
+
+6. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## Bot & datacenter filtering
+
+Every click is classified when it is recorded (`link_clicks.traffic_type`):
+
+| Type | Meaning |
+| --- | --- |
+| `human` | A real browser on a home / mobile network |
+| `bot` | Link-preview fetchers (WhatsApp, Facebook/Meta, X, LinkedIn, Slack, Telegram, …), search / AI crawlers, scanners, HTTP libraries, headless browsers, `HEAD` requests |
+| `datacenter` | Requests from cloud / hosting networks (Google, AWS, Azure, Meta, DigitalOcean, …) based on the IP's ASN and the geolocation provider's hosting flag |
+| `suspicious` | Browser-like requests missing headers every browser sends, or bursts of repeated clicks from the same visitor |
+
+Analytics pages have a **Hide bot clicks** switch (on by default, remembered
+per browser) that shows only `human` clicks everywhere: link and brand
+analytics, shared project pages and dashboard totals. The **Details** panel
+shows how many clicks were hidden and why. Rules live in
+`lib/bot-detection.ts`.
+
+## Development
+
+```bash
+npm run lint
+npm run typecheck
+npm test          # vitest unit tests in tests/
+npm run build
+```
+
+CI runs all four on every pull request.
 
 ## Public tracking URLs
 
@@ -51,8 +104,3 @@ linkto.in/{projectSlug}/{shortCode}/{creator}/sub1
 ```
 
 Example: `linkto.in/fws/podcast-1/ytrst/vish`
-
-5. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-

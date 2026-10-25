@@ -261,12 +261,21 @@ export function canOpenInNativeApp(destinationUrl: string): boolean {
   }
 }
 
+/** JSON string literal that is safe to embed inside an inline <script>. */
+function toScriptLiteral(value: string): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 /** Minimal HTML page: try native app, then fall back to web URL. */
 export function buildMobileAppRedirectHtml(targets: MobileRedirectTargets): string {
-  const webUrl = JSON.stringify(targets.webUrl);
-  const appUrl = targets.appUrl ? JSON.stringify(targets.appUrl) : "null";
+  const webUrl = toScriptLiteral(targets.webUrl);
+  const appUrl = targets.appUrl ? toScriptLiteral(targets.appUrl) : "null";
   const androidIntent = targets.androidIntent
-    ? JSON.stringify(targets.androidIntent)
+    ? toScriptLiteral(targets.androidIntent)
     : "null";
 
   return `<!DOCTYPE html>

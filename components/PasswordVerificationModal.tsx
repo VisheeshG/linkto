@@ -40,7 +40,11 @@ export function PasswordVerificationModal({
         setShowPasswordText(false);
       }
     } catch (err) {
-      setError("Failed to verify password. Please try again.");
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to verify password. Please try again."
+      );
       console.error("Password verification error:", err);
     } finally {
       setIsVerifying(false);

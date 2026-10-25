@@ -6,6 +6,8 @@ interface DashboardStatsCardsProps {
   totalProjects: number;
   totalLinks: number;
   totalClicks: number;
+  /** Label for the clicks card (e.g. "Genuine Clicks" when bots are hidden). */
+  clicksLabel?: string;
   loading?: boolean;
 }
 
@@ -37,6 +39,7 @@ export function DashboardStatsCards({
   totalProjects,
   totalLinks,
   totalClicks,
+  clicksLabel,
   loading = false,
 }: DashboardStatsCardsProps) {
   const values: Record<(typeof cards)[number]["key"], number> = {
@@ -54,7 +57,9 @@ export function DashboardStatsCards({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-600 mb-1">{label}</p>
+              <p className="text-sm font-medium text-slate-600 mb-1">
+                {key === "clicks" && clicksLabel ? clicksLabel : label}
+              </p>
               {loading ? (
                 <div className="h-9 w-20 bg-slate-100 rounded-lg animate-pulse" />
               ) : (

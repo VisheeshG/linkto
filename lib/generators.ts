@@ -3,7 +3,6 @@
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllPages } from "@/lib/supabase-pagination";
 import { slugifyName } from "@/lib/slug-utils";
 
 /**
@@ -72,18 +71,13 @@ export async function isProjectSlugUnique(
   slug: string,
   supabase: SupabaseClient
 ): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from("projects")
-      .select("id")
-      .eq("slug", slug)
-      .single();
-
-    // If error means no record found, which means it's unique
-    return !!error;
-  } catch {
-    return true; // Assume unique if error occurs
-  }
+  // Projects are only readable by their owner, so global availability is
+  // checked through a SECURITY DEFINER RPC.
+  const { data, error } = await supabase.rpc("is_project_slug_available", {
+    p_slug: slug,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 /**
@@ -139,28 +133,15 @@ export async function generateUniqueProjectSlug(
   for (const [letterCount, numberCount] of formats) {
     // For single letters, try to find an available one directly
     if (letterCount === 1 && numberCount === 0) {
-      const allProjects = await fetchAllPages(async (from, to) =>
-        supabase.from("projects").select("slug").range(from, to)
-      );
+      const letters = "abcdefghijklmnopqrstuvwxyz"
+        .split("")
+        .sort(() => Math.random() - 0.5);
 
-      const takenLetters = new Set(
-        allProjects
-          .map((p) => p.slug)
-          .filter((slug) => slug.length === 1 && /^[a-z]$/.test(slug))
-      );
-
-      const letters = "abcdefghijklmnopqrstuvwxyz".split("");
-      const availableLetters = letters.filter(
-        (letter) => !takenLetters.has(letter)
-      );
-
-      if (availableLetters.length > 0) {
-        const randomLetter =
-          availableLetters[Math.floor(Math.random() * availableLetters.length)];
-        console.log("Generated single letter slug:", randomLetter);
-        return randomLetter;
+      for (const letter of letters) {
+        if (await isProjectSlugUnique(letter, supabase)) {
+          return letter;
+        }
       }
-      console.log("All 26 single letters are taken, moving to next format");
       continue;
     }
 
