@@ -1,8 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Key, Plus, Trash2, Shield, X, Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff, KeyRound, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+import {
+  Button,
+  Card,
+  CardHeader,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  Input,
+  LoadingBlock,
+  Skeleton,
+} from "@/components/ui";
+import { formatRelative } from "@/lib/format";
 
 interface ProjectPassword {
   id: string;
@@ -15,38 +27,35 @@ interface ProjectPasswordManagerProps {
   projectId: string;
   accessToken: string;
   projectSlug?: string;
-  onClose?: () => void;
+  /** Rendered inside another dialog: no card chrome of its own. */
+  embedded?: boolean;
 }
 
+const MIN_LENGTH = 6;
+
+/** Access passwords for a project's shared client report. */
 export function ProjectPasswordManager({
   projectId,
   accessToken,
   projectSlug,
-  onClose,
+  embedded = false,
 }: ProjectPasswordManagerProps) {
   const [passwords, setPasswords] = useState<ProjectPassword[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPasswordText, setShowPasswordText] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ProjectPassword | null>(null);
 
   const loadPasswords = async () => {
     try {
-      const response = await fetch(
-        `/api/project-passwords?project_id=${projectId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to load passwords");
-      }
-
+      const response = await fetch(`/api/project-passwords?project_id=${projectId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error("Failed to load passwords");
       const data = await response.json();
       setPasswords(data.passwords || []);
     } catch (error) {
@@ -58,23 +67,24 @@ export function ProjectPasswordManager({
   };
 
   useEffect(() => {
-    // Only load passwords if we have an access token
     if (accessToken) {
       loadPasswords();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, accessToken]);
 
+  const resetForm = () => {
+    setShowForm(false);
+    setNewPassword("");
+    setNewDescription("");
+    setPasswordError(null);
+    setShowPasswordText(false);
+  };
+
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!newPassword.trim()) {
-      toast.error("Password cannot be empty");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (newPassword.trim().length < MIN_LENGTH) {
+      setPasswordError(`Use at least ${MIN_LENGTH} characters.`);
       return;
     }
 
@@ -92,18 +102,11 @@ export function ProjectPasswordManager({
           description: newDescription.trim() || null,
         }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create password");
-      }
-
+      if (!response.ok) throw new Error("Failed to create password");
       const data = await response.json();
       setPasswords([data.password, ...passwords]);
-      setNewPassword("");
-      setNewDescription("");
-      setShowNewPassword(false);
-      setShowPasswordText(false);
-      toast.success("Password created successfully");
+      resetForm();
+      toast.success("Password added");
     } catch (error) {
       console.error("Error creating password:", error);
       toast.error("Failed to create password");
@@ -113,224 +116,181 @@ export function ProjectPasswordManager({
   };
 
   const handleDeletePassword = async (passwordId: string) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this password? Anyone using this password will lose access."
-      )
-    ) {
-      return;
-    }
-
     try {
       const response = await fetch(`/api/project-passwords?id=${passwordId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete password");
-      }
-
-      setPasswords(passwords.filter((p) => p.id !== passwordId));
-
-      // Remove access token from localStorage if projectSlug is provided
+      if (!response.ok) throw new Error("Failed to delete password");
+      setPasswords((prev) => prev.filter((p) => p.id !== passwordId));
       if (projectSlug) {
-        localStorage.removeItem(`project_auth_${projectSlug}`);
+        try {
+          localStorage.removeItem(`project_auth_${projectSlug}`);
+        } catch {
+          // ignore
+        }
       }
-
-      toast.success("Password deleted successfully");
+      toast.success("Password deleted");
     } catch (error) {
       console.error("Error deleting password:", error);
       toast.error("Failed to delete password");
     }
   };
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
-      <div className="flex items-center justify-between mb-4 sm:mb-6">
-        <div className="flex items-center space-x-3 flex-1">
-          <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
-            <Shield className="w-5 h-5 text-purple-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900">
-              Access Passwords
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-600">
-              Manage who can view this project&apos;s analytics
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowNewPassword(!showNewPassword)}
-            className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg transition text-sm sm:text-base"
-            disabled={loading}
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add</span>
-          </button>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
-              title="Close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
+  const body = (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-sm text-slate-700">
+          <ShieldCheck
+            className={`h-4 w-4 ${passwords.length ? "text-emerald-600" : "text-slate-500"}`}
+            aria-hidden
+          />
+          {loading
+            ? "Checking protection…"
+            : passwords.length
+              ? `Protected · ${passwords.length} active ${passwords.length === 1 ? "password" : "passwords"}`
+              : "Not protected · anyone with the link can view"}
+        </p>
+        {!showForm && (
+          <Button size="sm" icon={Plus} onClick={() => setShowForm(true)} disabled={loading}>
+            Add password
+          </Button>
+        )}
       </div>
 
-      {showNewPassword && (
+      {showForm && (
         <form
           onSubmit={handleCreatePassword}
-          className="bg-slate-50 rounded-lg p-4 mb-4 border border-slate-200"
+          className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+          noValidate
         >
-          <h4 className="font-semibold text-slate-900 mb-3 text-sm sm:text-base">
-            Create New Password
-          </h4>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPasswordText ? "text" : "password"}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 pr-10 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  placeholder="Enter a secure password"
-                  required
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordText(!showPasswordText)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
-                  disabled={isSubmitting}
-                  title={showPasswordText ? "Hide password" : "Show password"}
-                >
-                  {showPasswordText ? (
-                    <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
-                  ) : (
-                    <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
-                Description (Optional)
-              </label>
-              <input
-                type="text"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                placeholder="Description"
+          <div>
+            <label htmlFor="new-project-password" className="mb-1.5 block text-sm font-medium text-slate-800">
+              Password
+            </label>
+            <div className="relative">
+              <Input
+                id="new-project-password"
+                type={showPasswordText ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  if (passwordError) setPasswordError(null);
+                }}
+                autoComplete="new-password"
+                aria-describedby="new-project-password-help"
+                invalid={Boolean(passwordError)}
+                className="pr-11"
                 disabled={isSubmitting}
+                autoFocus
               />
-              <p className="text-xs text-slate-500 mt-1">
-                Help remember who this password is for
-              </p>
+              <button
+                type="button"
+                onClick={() => setShowPasswordText((v) => !v)}
+                aria-label={showPasswordText ? "Hide password" : "Show password"}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+              >
+                {showPasswordText ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </button>
             </div>
+            <p
+              id="new-project-password-help"
+              role={passwordError ? "alert" : undefined}
+              className={`mt-1.5 text-xs ${passwordError ? "text-sm text-rose-700" : "text-slate-600"}`}
+            >
+              {passwordError ?? `At least ${MIN_LENGTH} characters.`}
+            </p>
           </div>
-          <div className="flex space-x-3 mt-4">
-            <button
-              type="submit"
+          <Field label="Who is it for?" optional hint="e.g. “Acme marketing team” — helps you revoke the right one later.">
+            <Input
+              id="new-project-password-label"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
               disabled={isSubmitting}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition text-sm sm:text-base disabled:bg-purple-400"
-            >
-              {isSubmitting ? "Creating..." : "Create Password"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowNewPassword(false);
-                setNewPassword("");
-                setNewDescription("");
-                setShowPasswordText(false);
-              }}
-              disabled={isSubmitting}
-              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded-lg transition text-sm sm:text-base"
-            >
+            />
+          </Field>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={resetForm} disabled={isSubmitting}>
               Cancel
-            </button>
+            </Button>
+            <Button type="submit" loading={isSubmitting}>
+              Add password
+            </Button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="text-center py-8">
-          <div className="inline-block w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3"></div>
-          <p className="text-sm sm:text-base text-slate-600">
-            Loading passwords...
-          </p>
-        </div>
+        <LoadingBlock label="Loading passwords">
+          <div className="space-y-2">
+            <Skeleton className="h-14" />
+            <Skeleton className="h-14" />
+          </div>
+        </LoadingBlock>
       ) : passwords.length === 0 ? (
-        <div className="text-center py-8">
-          <Key className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm sm:text-base text-slate-600 mb-2">
-            No passwords created yet
-          </p>
-          <p className="text-xs sm:text-sm text-slate-500">
-            Create passwords to control who can view this project
-          </p>
-        </div>
+        !showForm && (
+          <EmptyState
+            icon={KeyRound}
+            title="No passwords yet"
+            description="Add a password to require it before anyone can open the client report. Give each client their own so you can revoke access individually."
+          />
+        )
       ) : (
-        <div className="space-y-3">
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {passwords.map((password) => (
-            <div
-              key={password.id}
-              className="flex items-center justify-between p-3 sm:p-4 bg-slate-50 rounded-lg border border-slate-200"
-            >
-              <div className="flex items-center space-x-3 flex-1 min-w-0">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Key className="w-4 h-4 text-purple-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-900 text-sm sm:text-base truncate">
-                    {password.description || "Untitled Password"}
-                  </p>
-                  <p className="text-xs sm:text-sm text-slate-500">
-                    Created {new Date(password.created_at).toLocaleDateString()}
-                  </p>
-                </div>
+            <li key={password.id} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600" aria-hidden>
+                <KeyRound className="h-4 w-4" />
               </div>
-              <button
-                onClick={() => handleDeletePassword(password.id)}
-                className="ml-3 p-2 text-red-600 hover:bg-red-50 rounded-lg transition flex-shrink-0"
-                title="Delete password"
-              >
-                <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-            </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-900">
+                  {password.description || "Unnamed password"}
+                </p>
+                <p className="text-xs text-slate-600">
+                  Added {formatRelative(password.created_at) ?? "—"}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={Trash2}
+                iconClassName="text-rose-600"
+                label={`Delete password ${password.description || ""}`.trim()}
+                onClick={() => setPendingDelete(password)}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
-      <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <div className="flex items-start space-x-2">
-          <div className="text-blue-600 mt-0.5">
-            <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs sm:text-sm text-blue-900 font-medium mb-1">
-              How it works
-            </p>
-            <ul className="text-xs sm:text-sm text-blue-800 space-y-1">
-              <li>• Create multiple passwords for the same shared link</li>
-              {/* <li>• Each password acts as a unique access key</li> */}
-              <li>• Delete a password to revoke access for that person</li>
-              <li>• Other passwords continue to work independently</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <p className="text-xs text-slate-600">
+        Every password opens the same report. Deleting one signs out only the
+        people using it.
+      </p>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete) await handleDeletePassword(pendingDelete.id);
+        }}
+        title="Delete this password?"
+        description={
+          <>
+            Anyone using <strong>{pendingDelete?.description || "this password"}</strong> will
+            lose access to the client report.
+          </>
+        }
+        confirmLabel="Delete password"
+      />
     </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <Card>
+      <CardHeader title="Access passwords" description="Control who can open the client report." icon={KeyRound} />
+      {body}
+    </Card>
   );
 }

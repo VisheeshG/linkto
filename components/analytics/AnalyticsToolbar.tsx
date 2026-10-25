@@ -72,7 +72,8 @@ export function AnalyticsToolbar({
             id={`${idPrefix}-range`}
             value={range.preset}
             onChange={(e) => range.onPresetChange(e.target.value as DateRangePreset)}
-            className="h-9 w-auto min-w-[9.5rem]"
+            fullWidth={false}
+            className="h-9 min-w-[9.5rem]"
           >
             {DATE_RANGE_PRESET_OPTIONS.map(({ id, label }) => (
               <option key={id} value={id}>
@@ -130,7 +131,8 @@ export function AnalyticsToolbar({
               min={range.minDate}
               max={range.endDate || range.maxDate}
               onChange={(e) => range.onStartDateChange(e.target.value)}
-              className="h-9 w-auto"
+              fullWidth={false}
+              className="h-9"
             />
           </div>
           <div>
@@ -144,7 +146,8 @@ export function AnalyticsToolbar({
               min={range.startDate || range.minDate}
               max={range.maxDate}
               onChange={(e) => range.onEndDateChange(e.target.value)}
-              className="h-9 w-auto"
+              fullWidth={false}
+              className="h-9"
             />
           </div>
         </div>

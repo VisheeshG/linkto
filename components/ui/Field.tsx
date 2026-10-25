@@ -14,17 +14,20 @@ import {
 import { cn } from "./cn";
 
 const CONTROL =
-  "w-full rounded-lg border bg-white px-3 text-[15px] sm:text-sm text-slate-900 placeholder:text-slate-500 shadow-sm transition-colors outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:bg-slate-50 disabled:text-slate-500 read-only:bg-slate-50";
+  "rounded-lg border bg-white px-3 text-[15px] sm:text-sm text-slate-900 placeholder:text-slate-500 shadow-sm transition-colors outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:bg-slate-50 disabled:text-slate-500 read-only:bg-slate-50";
 
 type ControlExtras = { invalid?: boolean };
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & ControlExtras>(
-  function Input({ className, invalid, ...rest }, ref) {
+export const Input = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement> & ControlExtras & { fullWidth?: boolean }
+>(
+  function Input({ className, invalid, fullWidth = true, ...rest }, ref) {
     return (
       <input
         ref={ref}
         aria-invalid={invalid || undefined}
-        className={cn(CONTROL, "h-10", invalid ? "border-rose-400" : "border-slate-300", className)}
+        className={cn(CONTROL, fullWidth && "w-full", "h-10", invalid ? "border-rose-400" : "border-slate-300", className)}
         {...rest}
       />
     );
@@ -40,7 +43,7 @@ export const Textarea = forwardRef<
       ref={ref}
       rows={rows}
       aria-invalid={invalid || undefined}
-      className={cn(CONTROL, "py-2 resize-y", invalid ? "border-rose-400" : "border-slate-300", className)}
+      className={cn(CONTROL, "w-full py-2 resize-y", invalid ? "border-rose-400" : "border-slate-300", className)}
       {...rest}
     />
   );
@@ -48,13 +51,19 @@ export const Textarea = forwardRef<
 
 export const Select = forwardRef<
   HTMLSelectElement,
-  SelectHTMLAttributes<HTMLSelectElement> & ControlExtras
->(function Select({ className, invalid, ...rest }, ref) {
+  SelectHTMLAttributes<HTMLSelectElement> & ControlExtras & { fullWidth?: boolean }
+>(function Select({ className, invalid, fullWidth = true, ...rest }, ref) {
   return (
     <select
       ref={ref}
       aria-invalid={invalid || undefined}
-      className={cn(CONTROL, "h-10 pr-8 truncate", invalid ? "border-rose-400" : "border-slate-300", className)}
+      className={cn(
+        CONTROL,
+        fullWidth && "w-full",
+        "h-10 pr-8 truncate",
+        invalid ? "border-rose-400" : "border-slate-300",
+        className
+      )}
       {...rest}
     />
   );
