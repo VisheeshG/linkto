@@ -14,34 +14,14 @@ import {
 import { lookupGeo } from "@/lib/geo";
 import { computeVisitorHash } from "@/lib/visitor";
 import { applyUtmParameters } from "@/lib/utm";
+import type { ResolvedLink } from "@/lib/link-resolution";
 
-export type ResolvedLink = {
-  id: string;
-  destination_url: string;
-  platform: string;
-  submission_number: string | null;
-  open_app_on_mobile?: boolean;
-  include_submission_in_url?: boolean;
-  utm_enabled?: boolean;
-  expires_at?: string | null;
-  project_slug: string;
-};
-
-const LINK_COLUMNS =
-  "id, destination_url, platform, submission_number, open_app_on_mobile, include_submission_in_url, utm_enabled, expires_at";
-
-type LinkRow = Omit<ResolvedLink, "project_slug"> & {
-  projects: { slug: string } | { slug: string }[] | null;
-};
-
-function toResolvedLink(row: LinkRow | null): ResolvedLink | null {
-  if (!row) return null;
-  const project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
-  if (!project) return null;
-  const { projects: _projects, ...link } = row;
-  void _projects;
-  return { ...link, project_slug: project.slug };
-}
+export type { ResolvedLink, ResolveResult } from "@/lib/link-resolution";
+export {
+  resolveLinkByBrandProjectAndShortCode,
+  resolveLinkByProjectSlugAndShortCode,
+  resolveTrackingPath,
+} from "@/lib/link-resolution";
 
 export function parseCreatorAndSubmission(
   additionalParams: string[],
@@ -110,6 +90,21 @@ export function linkNotFoundResponse(): NextResponse {
     "Link not found",
     "This tracking link doesn&#39;t exist or has been removed."
   );
+}
+
+/**
+ * Server misconfiguration or database failure. Deliberately distinct from
+ * "not found" so a broken deploy is visible (503) instead of looking like
+ * deleted links.
+ */
+export function serviceUnavailableResponse(): NextResponse {
+  const res = messagePage(
+    503,
+    "Temporarily unavailable",
+    "We couldn&#39;t open this link right now. Please try again in a few minutes."
+  );
+  res.headers.set("Retry-After", "60");
+  return res;
 }
 
 function linkExpiredResponse(): NextResponse {
@@ -254,42 +249,4 @@ export function handleTrackingRedirect(
     status: 307,
     headers: { "Cache-Control": "no-store" },
   });
-}
-
-/** Legacy URL: /{projectSlug}/{shortCode}/... (project slugs are globally unique). */
-export async function resolveLinkByProjectSlugAndShortCode(
-  supabase: SupabaseClient,
-  projectSlug: string,
-  shortCode: string
-): Promise<ResolvedLink | null> {
-  const { data } = await supabase
-    .from("links")
-    .select(`${LINK_COLUMNS}, projects!inner(slug)`)
-    .eq("short_code", shortCode)
-    .eq("projects.slug", projectSlug)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  return toResolvedLink(data as LinkRow | null);
-}
-
-/** Branded URL: /{brandSlug}/{projectSlug}/{shortCode}/... in a single query. */
-export async function resolveLinkByBrandProjectAndShortCode(
-  supabase: SupabaseClient,
-  brandSlug: string,
-  projectSlug: string,
-  shortCode: string
-): Promise<ResolvedLink | null> {
-  const { data } = await supabase
-    .from("links")
-    .select(`${LINK_COLUMNS}, projects!inner(slug, brands!inner(slug))`)
-    .eq("short_code", shortCode)
-    .eq("projects.slug", projectSlug)
-    .eq("projects.brands.slug", brandSlug)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  return toResolvedLink(data as LinkRow | null);
 }

@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
+import { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   handleTrackingRedirect,
   linkNotFoundResponse,
-  resolveLinkByBrandProjectAndShortCode,
-  resolveLinkByProjectSlugAndShortCode,
+  resolveTrackingPath,
+  serviceUnavailableResponse,
 } from "@/lib/tracking-redirect";
 
 /**
@@ -14,6 +15,9 @@ import {
  *
  * HEAD requests are served by this GET handler too; they are recorded and
  * classified as bot traffic.
+ *
+ * 404 only when the link genuinely does not exist. Misconfiguration or a
+ * database error returns 503 and logs the cause with a "[redirect]" prefix.
  */
 export async function GET(
   request: NextRequest,
@@ -26,41 +30,43 @@ export async function GET(
     }>;
   }
 ) {
+  let supabase: SupabaseClient;
   try {
-    const supabase = getSupabaseAdmin();
+    supabase = getSupabaseAdmin();
+  } catch (error) {
+    console.error(
+      "[redirect] config error:",
+      error instanceof Error ? error.message : error
+    );
+    return serviceUnavailableResponse();
+  }
+
+  try {
     const { projectSlug: firstSegment, path } = await params;
-
-    if (path.length >= 3) {
-      const brandedLink = await resolveLinkByBrandProjectAndShortCode(
-        supabase,
-        firstSegment,
-        path[0],
-        path[1]
-      );
-
-      if (brandedLink) {
-        return handleTrackingRedirect(
-          request,
-          supabase,
-          brandedLink,
-          path.slice(2)
-        );
-      }
-    }
-
-    const linkData = await resolveLinkByProjectSlugAndShortCode(
+    const { result, additionalParams } = await resolveTrackingPath(
       supabase,
       firstSegment,
-      path[0]
+      path
     );
 
-    if (!linkData) {
+    if (result.status === "error") {
+      console.error(
+        `[redirect] could not resolve /${[firstSegment, ...path].join("/")}: ${result.error}`
+      );
+      return serviceUnavailableResponse();
+    }
+    if (result.status === "not_found") {
       return linkNotFoundResponse();
     }
 
-    return handleTrackingRedirect(request, supabase, linkData, path.slice(1));
+    return handleTrackingRedirect(
+      request,
+      supabase,
+      result.link,
+      additionalParams
+    );
   } catch (error) {
-    console.error("Redirect error:", error);
-    return linkNotFoundResponse();
+    console.error("[redirect] unexpected error:", error);
+    return serviceUnavailableResponse();
   }
 }
