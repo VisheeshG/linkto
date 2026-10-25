@@ -103,61 +103,39 @@ export function LinkList({
               />
             )}
 
-            <div className="relative z-10 p-4 sm:p-6 pointer-events-none">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition flex-shrink-0">
-                    <Link2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition break-words text-left">
-                      {link.link_title}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-2">
-                      <span>{link.platform}</span>
-                      {link.expires_at &&
-                        (new Date(link.expires_at) <= new Date() ? (
-                          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
-                            Expired
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                            Expires{" "}
-                            {new Date(link.expires_at).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </span>
-                        ))}
-                      {link.utm_enabled && (
-                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                          UTM
-                        </span>
-                      )}
-                    </p>
-                    {baseUrl && (
-                      <p className="text-xs text-slate-600 mt-2 font-mono break-all">
-                        {urlForLink(link)}
-                      </p>
-                    )}
-                    <a
-                      href={link.destination_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-blue-600 hover:underline break-all block sm:inline sm:ml-2 mt-1 pointer-events-auto"
-                    >
-                      {link.destination_url}
-                    </a>
-                    <LastEditedLabel
-                      updatedAt={link.updated_at}
-                      createdAt={link.created_at}
-                      className="mt-2"
-                    />
-                  </div>
+            <div className="relative z-10 p-4 sm:p-5 pointer-events-none">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition flex-shrink-0">
+                  <Link2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                 </div>
-
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition break-words text-left leading-snug">
+                    {link.link_title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                    <span>{link.platform}</span>
+                    {link.expires_at &&
+                      (new Date(link.expires_at) <= new Date() ? (
+                        <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                          Expired
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          Expires{" "}
+                          {new Date(link.expires_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                      ))}
+                    {link.utm_enabled && (
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                        UTM
+                      </span>
+                    )}
+                  </p>
+                </div>
                 <div className="flex items-center gap-1 pointer-events-auto shrink-0">
                   {!readOnly && onEditLink && (
                     <button
@@ -195,12 +173,39 @@ export function LinkList({
                 </div>
               </div>
 
-              {isCardClickable && (
-                <div className="mt-3 flex items-center space-x-2 text-blue-600 text-sm font-medium sm:opacity-0 sm:group-hover:opacity-100 transition pointer-events-none">
-                  <span>View analytics</span>
-                  <ExternalLink className="w-4 h-4" />
+              {/* Full card width below the title row so URLs never get squeezed. */}
+              <div className="mt-3 sm:pl-[3.75rem] min-w-0 space-y-1">
+                {baseUrl && (
+                  <p
+                    className="text-xs text-slate-600 font-mono truncate"
+                    title={urlForLink(link)}
+                  >
+                    {urlForLink(link)}
+                  </p>
+                )}
+                <a
+                  href={link.destination_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title={link.destination_url}
+                  className="block w-fit max-w-full truncate text-sm text-blue-600 hover:underline pointer-events-auto"
+                >
+                  {link.destination_url}
+                </a>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-1">
+                  <LastEditedLabel
+                    updatedAt={link.updated_at}
+                    createdAt={link.created_at}
+                  />
+                  {isCardClickable && (
+                    <span className="inline-flex items-center gap-1.5 text-blue-600 text-sm font-medium">
+                      View analytics
+                      <ExternalLink className="w-4 h-4" />
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         ))}

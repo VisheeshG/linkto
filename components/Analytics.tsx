@@ -1,5 +1,6 @@
 "use client";
 
+import { StatCard } from "@/components/StatCard";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, LinkClick } from "@/lib/supabase";
 import {
@@ -62,6 +63,8 @@ import {
   useAnalyticsDateRange,
 } from "@/hooks/useAnalyticsDateRange";
 import jsPDF from "jspdf";
+import toast from "react-hot-toast";
+import { describeError } from "@/lib/describe-error";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
@@ -140,6 +143,10 @@ export function Analytics({
       setAllClicks(clicks);
     } catch (error) {
       console.error("Error loading analytics:", error);
+      toast.error(
+        `Couldn't load click data: ${describeError(error)}`,
+        { id: "analytics-load-error", duration: 8000 }
+      );
     } finally {
       setLoading(false);
     }
@@ -652,6 +659,10 @@ export function Analytics({
       setCreatorModalFilters(DEFAULT_CLICK_FILTERS);
     } catch (error) {
       console.error("Error loading creator analytics:", error);
+      toast.error(
+        `Couldn't load creator clicks: ${describeError(error)}`,
+        { id: "creator-load-error", duration: 8000 }
+      );
     }
   };
 
@@ -698,57 +709,53 @@ export function Analytics({
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 top-0 z-40 shadow-sm">
-        <div className="max-w-7xl flex flex-row gap-3 mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4 flex items-start gap-2 sm:gap-3">
           <button
             onClick={onBack}
-            className="group flex items-center space-x-2 text-sm sm:text-base text-slate-600 hover:text-blue-600 mb-3 sm:mb-4 transition-all duration-200 hover:translate-x-[-4px]"
+            aria-label="Back"
+            className="group shrink-0 -ml-1 mt-0.5 sm:mt-1.5 p-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
           >
-            <div className="p-1 rounded-lg group-hover:bg-blue-50 transition-colors">
-              <ArrowLeft className="w-4 h-4" />
-            </div>
-            {/* <span className="font-medium">Back to Links</span> */}
+            <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <div>
-            <div className="flex flex-row gap-3">
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 break-words bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-xl sm:text-3xl font-bold text-slate-900 break-words min-w-0">
                 {link.link_title}
               </h1>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 border border-blue-300">
-                  {link.platform}
-                </span>
-              </div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 border border-blue-300">
+                {link.platform}
+              </span>
             </div>
-            <div className="mt-3 sm:mt-4 space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                <span className="text-slate-600 font-semibold">
-                  Destination:
-                </span>
-                <a
-                  href={link.destination_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-700 hover:underline break-all font-medium transition-colors"
-                >
-                  {link.destination_url}
-                </a>
-              </div>
+            <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 text-xs sm:text-sm min-w-0">
+              <span className="text-slate-600 font-semibold shrink-0">
+                Destination:
+              </span>
+              <a
+                href={link.destination_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={link.destination_url}
+                className="text-blue-600 hover:text-blue-700 hover:underline truncate font-medium transition-colors"
+              >
+                {link.destination_url}
+              </a>
             </div>
           </div>
-          <div className="relative ml-auto self-start" ref={exportMenuRef}>
+          <div className="relative shrink-0 self-start" ref={exportMenuRef}>
             <button
               type="button"
               onClick={() => setIsExportMenuOpen((prev) => !prev)}
               disabled={!canExport}
-              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Download report"
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-2.5 sm:px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-4 w-4" />
-              Download Report
+              <span className="hidden sm:inline">Download Report</span>
               <ChevronDown className="h-4 w-4" />
             </button>
             {isExportMenuOpen && (
-              <div className="absolute right-4 mt-2 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+              <div className="absolute right-0 z-50 mt-2 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
                 <button
                   type="button"
                   onClick={handleExportPdf}
@@ -778,73 +785,38 @@ export function Analytics({
           summary={trafficSummary}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  Total Clicks
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {data.totalClicks}
-                </p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <MousePointerClick className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+          <StatCard
+            label="Total Clicks"
+            value={data.totalClicks}
+            icon={MousePointerClick}
+            iconBg="bg-blue-50"
+            iconColor="text-blue-600"
+          />
 
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p
-                  className="text-xs sm:text-sm text-slate-600 mb-1 font-medium"
-                  title="Distinct visitors (same network + browser counted once)"
-                >
-                  Unique Visitors
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {data.uniqueVisitors}
-                </p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <UserCheck className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="Unique Visitors"
+            value={data.uniqueVisitors}
+            icon={UserCheck}
+            iconBg="bg-emerald-50"
+            iconColor="text-emerald-600"
+          />
 
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  Creators
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {Object.keys(data.clicksByCreator).length}
-                </p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Users className="w-6 h-6 sm:w-7 sm:h-7 text-orange-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="Creators"
+            value={Object.keys(data.clicksByCreator).length}
+            icon={Users}
+            iconBg="bg-orange-50"
+            iconColor="text-orange-600"
+          />
 
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300 hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  Devices
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {Object.keys(data.clicksByDevice).length}
-                </p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-cyan-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Monitor className="w-6 h-6 sm:w-7 sm:h-7 text-cyan-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="Devices"
+            value={Object.keys(data.clicksByDevice).length}
+            icon={Monitor}
+            iconBg="bg-cyan-50"
+            iconColor="text-cyan-600"
+          />
         </div>
 
         <div className="bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 border border-blue-200/60 rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-sm">

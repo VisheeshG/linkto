@@ -134,7 +134,11 @@ export function TrackingQrCode({
         </div>
 
         <div className="flex flex-col items-center gap-3">
-          <div className="w-40 h-40 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden bg-white">
+          <div
+            className={`w-40 h-40 rounded-xl border-2 border-dashed border-slate-200 items-center justify-center overflow-hidden bg-white ${
+              dataUrl ? "flex" : "hidden sm:flex"
+            }`}
+          >
             {dataUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- data URL, not optimizable
               <img src={dataUrl} alt={`QR code for ${url}`} className="w-full h-full" />

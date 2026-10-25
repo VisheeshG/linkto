@@ -1,5 +1,6 @@
 "use client";
 
+import { StatCard } from "@/components/StatCard";
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import type { Project, Link } from "@/lib/supabase";
@@ -256,54 +257,30 @@ export default function PublicProjectPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  Total Links
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {links.length}
-                </p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Link2 className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+          <StatCard
+            label="Total Links"
+            value={links.length}
+            icon={Link2}
+            iconBg="bg-blue-50"
+            iconColor="text-blue-600"
+          />
 
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  {hideBots ? "Genuine Clicks" : "Total Clicks"}
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {hideBots ? stats.humanClicks : stats.totalClicks}
-                </p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-green-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <MousePointerClick className="w-6 h-6 sm:w-7 sm:h-7 text-green-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label={hideBots ? "Genuine Clicks" : "Total Clicks"}
+            value={hideBots ? stats.humanClicks : stats.totalClicks}
+            icon={MousePointerClick}
+            iconBg="bg-green-50"
+            iconColor="text-green-600"
+          />
 
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 p-4 sm:p-6 transition-all duration-300 sm:col-span-2 lg:col-span-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-slate-600 mb-1 font-medium">
-                  Platforms
-                </p>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900">
-                  {platformCount}
-                </p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600" />
-              </div>
-            </div>
-          </div>
+          <StatCard
+            label="Platforms"
+            value={platformCount}
+            icon={TrendingUp}
+            iconBg="bg-emerald-50"
+            iconColor="text-emerald-600"
+          />
         </div>
 
         {links.length === 0 ? (

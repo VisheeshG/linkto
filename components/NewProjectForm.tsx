@@ -205,7 +205,7 @@ export function NewProjectForm({
               Custom
             </button>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex gap-2">
             <input
               id="slug"
               type="text"
@@ -216,7 +216,7 @@ export function NewProjectForm({
                   : undefined
               }
               readOnly={slugMode === "auto"}
-              className={`flex-1 px-3 py-3 text-base border-2 border-slate-300 rounded-xl font-mono outline-none transition-all ${
+              className={`flex-1 min-w-0 px-3 py-3 text-base border-2 border-slate-300 rounded-xl font-mono outline-none transition-all ${
                 slugMode === "auto"
                   ? "bg-slate-50 text-slate-600 cursor-not-allowed"
                   : "focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -233,7 +233,7 @@ export function NewProjectForm({
                 type="button"
                 onClick={handleGenerateSlug}
                 disabled={isGeneratingSlug}
-                className="px-4 py-2 text-sm bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                className="shrink-0 px-4 py-2 text-sm bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
               >
                 {isGeneratingSlug ? "..." : "New"}
               </button>
