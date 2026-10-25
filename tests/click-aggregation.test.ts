@@ -126,3 +126,23 @@ describe("helpers", () => {
     expect(referrerLabel("not a url")).toBe("Direct / unknown");
   });
 });
+
+describe("format helpers", async () => {
+  const { formatCompact, formatNumber, formatPercent, formatRelative } = await import("@/lib/format");
+  it("formats numbers the Indian way", () => {
+    expect(formatNumber(1234567)).toBe("12,34,567");
+    expect(formatCompact(950)).toBe("950");
+    expect(formatCompact(12400)).toBe("12.4K");
+    expect(formatCompact(120000)).toBe("1.2L");
+    expect(formatCompact(34000000)).toBe("3.4Cr");
+    expect(formatPercent(1, 3)).toBe("33%");
+    expect(formatPercent(1, 0)).toBe("0%");
+  });
+  it("formats relative times", () => {
+    const now = Date.parse("2026-10-25T12:00:00Z");
+    expect(formatRelative("2026-10-25T11:59:30Z", now)).toBe("just now");
+    expect(formatRelative("2026-10-25T10:00:00Z", now)).toBe("2h ago");
+    expect(formatRelative("2026-10-22T12:00:00Z", now)).toBe("3d ago");
+    expect(formatRelative(null, now)).toBeNull();
+  });
+});
