@@ -1,16 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowRightLeft, FolderOpen, MoreHorizontal, Trash2 } from "lucide-react";
 import { Project, Brand } from "@/lib/supabase";
-import {
-  FolderOpen,
-  Trash2,
-  AlertTriangle,
-  ArrowRightLeft,
-  Link2,
-  MousePointerClick,
-} from "lucide-react";
-import { LastEditedLabel } from "./LastEditedLabel";
+import { Button, ConfirmDialog, Dialog, DropdownMenu, Field, Select, type MenuItem } from "@/components/ui";
+import { formatNumber, formatRelative } from "@/lib/format";
 
 export type ProjectWithStats = Project & {
   linkCount: number;
@@ -22,10 +16,7 @@ interface ProjectListProps {
   brands?: Brand[];
   onSelectProject: (project: Project) => void;
   onDeleteProject: (projectId: string) => void | Promise<void>;
-  onMoveToBrand?: (
-    projectId: string,
-    brandId: string | null
-  ) => void | Promise<void>;
+  onMoveToBrand?: (projectId: string, brandId: string | null) => void | Promise<void>;
 }
 
 export function ProjectList({
@@ -35,170 +26,159 @@ export function ProjectList({
   onDeleteProject,
   onMoveToBrand,
 }: ProjectListProps) {
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    show: boolean;
-    projectId: string | null;
-    projectName: string | null;
-  }>({ show: false, projectId: null, projectName: null });
-
-  const handleDelete = (
-    e: React.MouseEvent,
-    projectId: string,
-    projectName: string
-  ) => {
-    e.stopPropagation();
-    setDeleteConfirm({ show: true, projectId, projectName });
-  };
-
-  const confirmDelete = async () => {
-    if (deleteConfirm.projectId) {
-      const projectId = deleteConfirm.projectId;
-      setDeleteConfirm({ show: false, projectId: null, projectName: null });
-      await onDeleteProject(projectId);
-    }
-  };
-
-  const cancelDelete = () => {
-    setDeleteConfirm({ show: false, projectId: null, projectName: null });
-  };
-
-  const handleMoveChange = (
-    e: React.ChangeEvent<HTMLSelectElement>,
-    projectId: string
-  ) => {
-    e.stopPropagation();
-    if (!onMoveToBrand) return;
-    const value = e.target.value;
-    void onMoveToBrand(projectId, value === "" ? null : value);
-  };
+  const [pendingDelete, setPendingDelete] = useState<ProjectWithStats | null>(null);
+  const [moving, setMoving] = useState<ProjectWithStats | null>(null);
+  const [moveTarget, setMoveTarget] = useState("");
+  const [moveBusy, setMoveBusy] = useState(false);
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {projects.map((project) => (
-          <div
-            key={project.id}
-            className="clickable-card relative bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition group"
-          >
-            <button
-              type="button"
-              onClick={() => onSelectProject(project)}
-              className="absolute inset-0 z-0 w-full h-full rounded-xl cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-              aria-label={`Open project ${project.name}`}
-            />
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+        {projects.map((project) => {
+          const items: MenuItem[] = [];
+          if (onMoveToBrand) {
+            items.push({
+              label: "Move to brand…",
+              icon: ArrowRightLeft,
+              onSelect: () => {
+                setMoveTarget(project.brand_id ?? "");
+                setMoving(project);
+              },
+            });
+          }
+          items.push({
+            label: "Delete project",
+            description: "Deletes its links and click data",
+            icon: Trash2,
+            tone: "danger",
+            onSelect: () => setPendingDelete(project),
+          });
 
-            <div className="relative z-10 p-4 sm:p-6 pointer-events-none">
-              <div className="flex items-start justify-between mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition flex-shrink-0">
-                  <FolderOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                </div>
-                <div className="flex items-center gap-1 pointer-events-auto">
-                  {onMoveToBrand && (
-                    <div className="relative opacity-100 sm:opacity-0 group-hover:opacity-100 transition">
-                      <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <select
-                        value={project.brand_id ?? ""}
-                        onChange={(e) => handleMoveChange(e, project.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="pl-7 pr-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 max-w-[120px] truncate cursor-pointer"
-                        aria-label={`Move ${project.name} to brand`}
+          return (
+            <li key={project.id}>
+              <article className="group relative flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-primary-300 focus-within:border-primary-300 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+                    <FolderOpen className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-semibold leading-snug text-slate-900">
+                      <button
+                        type="button"
+                        onClick={() => onSelectProject(project)}
+                        className="text-left break-words hover:text-primary-700 after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
                       >
-                        <option value="">Unbranded</option>
-                        {brands.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
+                        {project.name}
+                      </button>
+                    </h3>
+                    <p className="mt-0.5 truncate font-mono text-xs text-slate-600">/{project.slug}</p>
+                  </div>
+                  <div className="relative z-20">
+                    <DropdownMenu
+                      label={`Actions for ${project.name}`}
+                      items={items}
+                      trigger={(props) => (
+                        <button
+                          {...props}
+                          type="button"
+                          aria-label={`More actions for ${project.name}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+                        >
+                          <MoreHorizontal className="h-4 w-4" aria-hidden />
+                        </button>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {project.description && (
+                  <p className="mt-3 line-clamp-2 text-sm text-slate-600">{project.description}</p>
+                )}
+
+                <div aria-hidden className="min-h-4 flex-1" />
+                <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
+                  <dl className="flex gap-5">
+                    <div>
+                      <dd className="text-base font-semibold tabular-nums text-slate-900">{formatNumber(project.linkCount)}</dd>
+                      <dt className="text-xs text-slate-600">{project.linkCount === 1 ? "link" : "links"}</dt>
                     </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={(e) => handleDelete(e, project.id, project.name)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition opacity-100 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    <div>
+                      <dd className="text-base font-semibold tabular-nums text-slate-900">{formatNumber(project.clickCount)}</dd>
+                      <dt className="text-xs text-slate-600">{project.clickCount === 1 ? "click" : "clicks"}</dt>
+                    </div>
+                  </dl>
+                  <p className="text-xs text-slate-600">
+                    Edited {formatRelative(project.updated_at || project.created_at) ?? "—"}
+                  </p>
                 </div>
-              </div>
+              </article>
+            </li>
+          );
+        })}
+      </ul>
 
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2 group-hover:text-blue-600 transition break-words text-left">
-                {project.name}
-              </h3>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete) await onDeleteProject(pendingDelete.id);
+        }}
+        title="Delete this project?"
+        description={
+          <>
+            <strong>{pendingDelete?.name}</strong>, its {formatNumber(pendingDelete?.linkCount ?? 0)} links
+            and all their click data will be permanently deleted. Tracking URLs
+            already shared will stop working.
+          </>
+        }
+        confirmLabel="Delete project"
+      />
 
-              {project.description && (
-                <p className="text-sm text-slate-600 mb-3 sm:mb-4 line-clamp-2 text-left">
-                  {project.description}
-                </p>
-              )}
-
-              <div className="pt-3 sm:pt-4 border-t border-slate-100 space-y-2">
-                <div className="flex flex-wrap gap-3 text-xs text-slate-600">
-                  <span className="flex items-center gap-1">
-                    <Link2 className="w-3 h-3" />
-                    {project.linkCount.toLocaleString()} links
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <MousePointerClick className="w-3 h-3" />
-                    {project.clickCount.toLocaleString()} clicks
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-slate-400 font-medium">
-                    Slug:
-                  </span>
-                  <span className="text-sm text-blue-600 font-mono font-semibold bg-blue-50 px-2 py-1 rounded">
-                    {project.slug}
-                  </span>
-                </div>
-                <LastEditedLabel
-                  updatedAt={project.updated_at}
-                  createdAt={project.created_at}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {deleteConfirm.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-          <div
-            className="clickable-backdrop absolute inset-0 bg-black/50"
-            onClick={cancelDelete}
-          />
-          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-lg p-4 sm:p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900">
-                Delete Project
-              </h3>
-            </div>
-            <p className="text-sm sm:text-base text-slate-600 mb-4">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold">{deleteConfirm.projectName}</span>
-              ? This will also delete all associated links and analytics data.
-              This action cannot be undone.
-            </p>
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-              <button
-                onClick={confirmDelete}
-                className="w-full sm:flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition font-medium"
-              >
-                Delete
-              </button>
-              <button
-                onClick={cancelDelete}
-                className="w-full sm:flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-lg transition font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={moving !== null}
+        onClose={() => setMoving(null)}
+        dismissible={!moveBusy}
+        title="Move project"
+        description={moving ? `Choose a brand for “${moving.name}”.` : undefined}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setMoving(null)} disabled={moveBusy}>
+              Cancel
+            </Button>
+            <Button
+              loading={moveBusy}
+              disabled={!moving || (moving.brand_id ?? "") === moveTarget}
+              onClick={async () => {
+                if (!moving || !onMoveToBrand) return;
+                setMoveBusy(true);
+                try {
+                  await onMoveToBrand(moving.id, moveTarget || null);
+                  setMoving(null);
+                } finally {
+                  setMoveBusy(false);
+                }
+              }}
+            >
+              Move
+            </Button>
+          </>
+        }
+      >
+        <Field
+          label="Brand"
+          hint="Branded tracking URLs change to the new brand; legacy /project/… URLs keep working."
+        >
+          <Select value={moveTarget} onChange={(e) => setMoveTarget(e.target.value)}>
+            <option value="">No brand</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </Dialog>
     </>
   );
 }
