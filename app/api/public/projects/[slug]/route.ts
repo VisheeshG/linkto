@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { loadAuthorizedProject } from "@/lib/public-project";
 import { PUBLIC_LINK_COLUMNS } from "@/lib/click-columns";
-import { countClicksForLinkIds, fetchAllPages } from "@/lib/supabase-pagination";
+import { countClicksPerLink, fetchAllPages } from "@/lib/supabase-pagination";
 import type { Link } from "@/lib/supabase";
 
 // GET /api/public/projects/{slug}
@@ -35,10 +35,14 @@ export async function GET(
     ]);
 
     const linkIds = links.map((l) => l.id);
-    const [totalClicks, humanClicks] = await Promise.all([
-      countClicksForLinkIds(admin, linkIds),
-      countClicksForLinkIds(admin, linkIds, { humanOnly: true }),
+    const [totalByLink, humanByLink] = await Promise.all([
+      countClicksPerLink(admin, linkIds),
+      countClicksPerLink(admin, linkIds, { humanOnly: true }),
     ]);
+    const sum = (counts: Record<string, number>) =>
+      Object.values(counts).reduce((total, n) => total + n, 0);
+    const totalClicks = sum(totalByLink);
+    const humanClicks = sum(humanByLink);
 
     return NextResponse.json(
       {
@@ -52,6 +56,7 @@ export async function GET(
         hasPasswords,
         links,
         stats: { totalClicks, humanClicks },
+        linkClicks: { total: totalByLink, human: humanByLink },
       },
       { headers: { "Cache-Control": "no-store" } }
     );
