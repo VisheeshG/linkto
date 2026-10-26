@@ -99,9 +99,9 @@ function PrimaryCta({
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600 mb-4">
+    <p className={`text-xs font-semibold uppercase tracking-[0.2em] mb-4 ${dark ? "text-cyan-400" : "text-cyan-700"}`}>
       {children}
     </p>
   );
@@ -184,7 +184,7 @@ export function LinktoLanding() {
             {LOGO_NAMES.map((name) => (
               <span
                 key={name}
-                className="text-sm font-semibold text-slate-400 grayscale opacity-70"
+                className="text-sm font-semibold text-slate-500"
               >
                 {name}
               </span>
@@ -416,7 +416,7 @@ export function LinktoLanding() {
       <section id="use-cases" className="py-20 sm:py-28 bg-[#0a0a0f] text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <SectionLabel>Use cases</SectionLabel>
+            <SectionLabel dark>Use cases</SectionLabel>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
               Built for how teams actually run creator campaigns
             </h2>
@@ -534,7 +534,7 @@ function FeatureVisual({ type }: { type: string }) {
               {c[0].toUpperCase()}
             </span>
             <span className="font-mono text-sm text-slate-700">/{c}</span>
-            <span className="ml-auto text-xs text-emerald-600 font-medium">
+            <span className="ml-auto text-xs text-emerald-700 font-medium">
               attributed
             </span>
           </li>
@@ -604,7 +604,7 @@ function Footer() {
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">
               Product
             </p>
             <ul className="space-y-2 text-sm">
@@ -626,7 +626,7 @@ function Footer() {
             </ul>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">
               Company
             </p>
             <ul className="space-y-2 text-sm">
@@ -646,7 +646,7 @@ function Footer() {
             </ul>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">
               Legal
             </p>
             <ul className="space-y-2 text-sm">
@@ -663,7 +663,7 @@ function Footer() {
             </ul>
           </div>
         </div>
-        <p className="mt-12 pt-8 border-t border-white/5 text-xs text-center text-slate-600">
+        <p className="mt-12 pt-8 border-t border-white/5 text-xs text-center text-slate-400">
           © {new Date().getFullYear()} Linkto. Creator analytics, not just link
           shortening.
         </p>

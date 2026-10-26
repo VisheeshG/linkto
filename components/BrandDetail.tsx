@@ -7,7 +7,12 @@ import { supabase, Brand, Project } from "@/lib/supabase";
 import { DashboardStatsCards } from "./DashboardStatsCards";
 import { ProjectList, ProjectWithStats } from "./ProjectList";
 import { TitleSearchBar } from "./TitleSearchBar";
-import { NewProjectForm } from "./NewProjectForm";
+import { NewProjectDialog } from "./dashboard/NewProjectDialog";
+import { EditDetailsDialog } from "./project/EditDetailsDialog";
+import { AppPage, PageNotFound, PageSkeleton } from "./app/AppPage";
+import { Button, EmptyState, PageHeader, TabPanel, Tabs } from "./ui";
+import { formatRelative } from "@/lib/format";
+import { siteConfig } from "@/lib/site-config";
 import { BrandAnalyticsPanel } from "./BrandAnalyticsPanel";
 import { matchesTitleQuery } from "@/lib/search";
 import { isValidSlug } from "@/lib/slug-utils";
@@ -15,12 +20,11 @@ import {
   isBrandSlugUniqueForUser,
   isProjectSlugUnique,
 } from "@/lib/generators";
-import { LastEditedLabel } from "./LastEditedLabel";
 import {
   fetchStatsForProjectIds,
   fetchStatsMapForProjectIds,
 } from "@/lib/project-stats";
-import { ArrowLeft, Plus, Briefcase, Pencil } from "lucide-react";
+import { BarChart3, Briefcase, FolderOpen, Pencil, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { useHideBotClicks } from "@/hooks/useHideBotClicks";
 
@@ -40,11 +44,8 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
   const [totalClicks, setTotalClicks] = useState(0);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
-  const [isEditingBrand, setIsEditingBrand] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editSlug, setEditSlug] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [isSavingBrand, setIsSavingBrand] = useState(false);
+  const [showEditBrand, setShowEditBrand] = useState(false);
+  const [tab, setTab] = useState<"projects" | "analytics">("projects");
 
   const brandProjects = useMemo(
     () => projects.filter((p) => p.brand_id === brandId),
@@ -113,9 +114,6 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
       if (projectsRes.error) throw projectsRes.error;
 
       setBrand(brandRes.data);
-      setEditName(brandRes.data.name);
-      setEditSlug(brandRes.data.slug);
-      setEditDescription(brandRes.data.description ?? "");
       setBrands(brandsRes.data || []);
       const allProjects = (projectsRes.data || []).map((p) => ({
         ...p,
@@ -141,51 +139,28 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
     loadData();
   }, [loadData]);
 
-  const resetBrandEditFields = (b: Brand) => {
-    setEditName(b.name);
-    setEditSlug(b.slug);
-    setEditDescription(b.description ?? "");
-  };
-
-  const handleSaveBrand = async () => {
-    if (!brand || !user) return;
-    const trimmedName = editName.trim();
-    const trimmedSlug = editSlug.trim().toLowerCase();
-    const trimmedDescription = editDescription.trim();
-
-    if (!trimmedName) {
-      toast.error("Brand name is required");
-      return;
-    }
-
-    if (!isValidSlug(trimmedSlug)) {
-      toast.error(
-        "Brand URL slug must be 2–48 characters: lowercase letters, numbers, and hyphens only."
-      );
-      return;
-    }
-
-    setIsSavingBrand(true);
+  const handleSaveBrand = async (values: {
+    name: string;
+    description: string;
+    slug?: string;
+  }): Promise<boolean> => {
+    if (!brand || !user) return false;
+    const nextSlug = values.slug ?? brand.slug;
     try {
-      if (trimmedSlug !== brand.slug) {
-        const unique = await isBrandSlugUniqueForUser(
-          trimmedSlug,
-          user.id,
-          supabase,
-          brand.id
-        );
+      if (nextSlug !== brand.slug) {
+        const unique = await isBrandSlugUniqueForUser(nextSlug, user.id, supabase, brand.id);
         if (!unique) {
-          toast.error(`Brand slug "${trimmedSlug}" is already in use.`);
-          return;
+          toast.error(`You already have a brand using “${nextSlug}”.`);
+          return false;
         }
       }
 
       const { data, error } = await supabase
         .from("brands")
         .update({
-          name: trimmedName,
-          slug: trimmedSlug,
-          description: trimmedDescription || null,
+          name: values.name,
+          slug: nextSlug,
+          description: values.description || null,
         })
         .eq("id", brand.id)
         .select()
@@ -194,20 +169,15 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
       if (error) throw error;
       setBrand(data);
       setBrands(brands.map((b) => (b.id === data.id ? data : b)));
-      setIsEditingBrand(false);
-      if (trimmedSlug !== brand.slug) {
-        toast.success(
-          "Brand updated. Old tracking URLs using the previous slug will stop working."
-        );
-      } else {
-        toast.success("Brand updated");
-      }
-    } catch (error: unknown) {
-      toast.error(
-        error instanceof Error ? error.message : "Error updating brand"
+      toast.success(
+        nextSlug !== brand.slug
+          ? "Brand updated. Tracking URLs with the old slug no longer work."
+          : "Brand updated"
       );
-    } finally {
-      setIsSavingBrand(false);
+      return true;
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Error updating brand");
+      return false;
     }
   };
 
@@ -348,228 +318,147 @@ export function BrandDetail({ brandId }: BrandDetailProps) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50 flex items-center justify-center">
-        <p className="text-slate-600 font-medium">Loading brand...</p>
-      </div>
-    );
+    return <PageSkeleton label="Loading brand" />;
   }
 
   if (!brand) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-slate-600 mb-4">Brand not found</p>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="text-violet-600 font-semibold hover:underline"
-          >
-            Back to dashboard
-          </button>
-        </div>
-      </div>
+      <PageNotFound
+        title="Brand not found"
+        description="It may have been deleted, or it belongs to a different account."
+        crumbs={[{ label: "Dashboard", href: "/dashboard" }]}
+      />
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50">
-      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="flex items-center gap-2 text-slate-600 hover:text-violet-600 mb-4 text-sm font-medium"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to dashboard
-          </button>
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center">
-              <Briefcase className="w-6 h-6 text-violet-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              {isEditingBrand ? (
-                <div className="space-y-3 max-w-xl">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Brand name
-                    </label>
-                    <input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="w-full text-lg font-bold border-2 border-violet-300 rounded-lg px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Brand URL slug
-                    </label>
-                    <input
-                      value={editSlug}
-                      onChange={(e) =>
-                        setEditSlug(
-                          e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")
-                        )
-                      }
-                      className={`w-full font-mono border-2 rounded-lg px-3 py-2 ${
-                        editSlug && !isValidSlug(editSlug)
-                          ? "border-amber-400 bg-amber-50"
-                          : "border-violet-300"
-                      }`}
-                    />
-                    {editSlug !== brand.slug && (
-                      <p className="text-xs text-amber-700 mt-1 font-medium">
-                        Changing the slug breaks existing branded links that use{" "}
-                        <span className="font-mono">{brand.slug}</span>.
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Description{" "}
-                      <span className="font-normal text-slate-400">(optional)</span>
-                    </label>
-                    <textarea
-                      value={editDescription}
-                      onChange={(e) => setEditDescription(e.target.value)}
-                      rows={2}
-                      className="w-full border-2 border-violet-300 rounded-lg px-3 py-2 text-sm resize-none"
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={handleSaveBrand}
-                      disabled={isSavingBrand}
-                      className="px-4 py-2 bg-violet-600 text-white text-sm rounded-lg font-semibold disabled:opacity-50"
-                    >
-                      {isSavingBrand ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingBrand(false);
-                        resetBrandEditFields(brand);
-                      }}
-                      disabled={isSavingBrand}
-                      className="px-4 py-2 bg-slate-100 text-sm rounded-lg font-semibold"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 truncate">
-                    {brand.name}
-                  </h1>
-                  <button
-                    onClick={() => {
-                      resetBrandEditFields(brand);
-                      setIsEditingBrand(true);
-                    }}
-                    className="p-1.5 text-slate-400 hover:text-violet-600 rounded-lg cursor-pointer"
-                    aria-label="Edit brand"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-              {!isEditingBrand && (
-                <>
-                  <p className="text-sm text-slate-500 mt-1 font-mono">
-                    linkto.in/{brand.slug}/…
-                  </p>
-                  {brand.description && (
-                    <p className="text-slate-600 mt-1">{brand.description}</p>
-                  )}
-                  <LastEditedLabel
-                    updatedAt={brand.updated_at}
-                    createdAt={brand.created_at}
-                    className="mt-2"
-                  />
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+  const host = siteConfig.url.replace(/^https?:\/\//, "");
+  const edited = formatRelative(brand.updated_at || brand.created_at);
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-8">
+  return (
+    <AppPage crumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: brand.name }]}>
+      <PageHeader
+        icon={
+          <div aria-hidden className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600 sm:flex">
+            <Briefcase className="h-6 w-6" />
+          </div>
+        }
+        title={brand.name}
+        meta={
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Pencil}
+            label="Edit brand details"
+            onClick={() => setShowEditBrand(true)}
+          />
+        }
+        description={
+          <>
+            {brand.description && <p>{brand.description}</p>}
+            <p className="mt-1 text-xs text-slate-600">
+              <span className="font-mono">{host}/{brand.slug}/…</span>
+              {edited ? ` · Edited ${edited}` : ""}
+            </p>
+          </>
+        }
+        actions={
+          <Button icon={Plus} onClick={() => setShowNewProject(true)}>
+            New project
+          </Button>
+        }
+      />
+
+      <Tabs
+        tabs={[
+          { id: "projects", label: "Projects", icon: FolderOpen, count: brandProjects.length },
+          { id: "analytics", label: "Analytics", icon: BarChart3 },
+        ]}
+        value={tab}
+        onChange={setTab}
+        idPrefix="brand"
+        label="Brand sections"
+        className="mb-6"
+      />
+
+      <TabPanel id="projects" active={tab} idPrefix="brand">
         <DashboardStatsCards
           totalProjects={brandProjects.length}
           totalLinks={totalLinks}
           totalClicks={totalClicks}
-          clicksLabel={hideBots ? "Genuine Clicks" : "Total Clicks"}
+          clicksLabel={hideBots ? "Genuine clicks" : "Total clicks"}
           loading={statsLoading}
         />
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h2 className="text-xl font-bold text-slate-900">Projects</h2>
-          <button
-            onClick={() => setShowNewProject(true)}
-            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold"
-          >
-            <Plus className="w-5 h-5" />
-            New Project
-          </button>
-        </div>
-
-        {brandProjects.length > 0 && (
+        {brandProjects.length > 3 && (
           <TitleSearchBar
             value={projectSearch}
             onChange={setProjectSearch}
-            placeholder="Search projects in this brand..."
-            className="mb-6 max-w-md"
+            placeholder="Search projects…"
+            className="mb-4 w-full sm:w-72"
           />
         )}
 
         {brandProjects.length === 0 ? (
-          <div className="bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center mb-10">
-            <p className="text-slate-600 mb-4">No projects in this brand yet.</p>
-            <button
-              onClick={() => setShowNewProject(true)}
-              className="text-blue-600 font-semibold hover:underline"
-            >
-              Create a project
-            </button>
-          </div>
+          <EmptyState
+            icon={FolderOpen}
+            title="No projects in this brand yet"
+            description="Projects are campaigns. Each gets its own links, analytics and shareable client report."
+            action={
+              <Button icon={Plus} onClick={() => setShowNewProject(true)}>
+                New project
+              </Button>
+            }
+          />
         ) : filteredProjectsWithStats.length === 0 ? (
-          <p className="text-slate-600 mb-10">No projects match your search.</p>
+          <EmptyState
+            title={`No projects match “${projectSearch.trim()}”`}
+            action={
+              <Button variant="secondary" onClick={() => setProjectSearch("")}>
+                Clear search
+              </Button>
+            }
+          />
         ) : (
-          <div className="mb-10">
-            <ProjectList
-              projects={filteredProjectsWithStats}
-              brands={brands}
-              onSelectProject={(p) => router.push(`/dashboard/${p.id}`)}
-              onDeleteProject={handleDeleteProject}
-              onMoveToBrand={handleMoveToBrand}
-            />
-          </div>
+          <ProjectList
+            projects={filteredProjectsWithStats}
+            brands={brands}
+            onSelectProject={(p) => router.push(`/dashboard/${p.id}`)}
+            onDeleteProject={handleDeleteProject}
+            onMoveToBrand={handleMoveToBrand}
+          />
         )}
+      </TabPanel>
 
+      <TabPanel id="analytics" active={tab} idPrefix="brand">
         <BrandAnalyticsPanel
           projectIds={brandProjects.map((p) => p.id)}
           projects={brandProjects}
           brandSlug={brand.slug}
         />
-      </main>
+      </TabPanel>
 
-      {showNewProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-          <div
-            className="clickable-backdrop absolute inset-0 bg-black/60"
-            onClick={() => setShowNewProject(false)}
-          />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <NewProjectForm
-              brands={brands}
-              defaultBrandId={brandId}
-              onSubmit={handleCreateProject}
-              onCancel={() => setShowNewProject(false)}
-            />
-          </div>
-        </div>
-      )}
-    </div>
+      <NewProjectDialog
+        open={showNewProject}
+        onClose={() => setShowNewProject(false)}
+        brands={brands}
+        defaultBrandId={brandId}
+        onSubmit={handleCreateProject}
+      />
+
+      <EditDetailsDialog
+        open={showEditBrand}
+        onClose={() => setShowEditBrand(false)}
+        title="Edit brand"
+        nameLabel="Brand name"
+        initial={{ name: brand.name, description: brand.description ?? "", slug: brand.slug }}
+        slug={{
+          prefix: `${host}/`,
+          hint: "changing it breaks branded links already shared",
+          validate: (value) =>
+            isValidSlug(value) ? null : "Use 2–48 lowercase letters, numbers and single hyphens.",
+        }}
+        onSave={handleSaveBrand}
+      />
+    </AppPage>
   );
 }

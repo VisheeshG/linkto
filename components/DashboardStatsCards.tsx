@@ -15,21 +15,21 @@ interface DashboardStatsCardsProps {
 const cards = [
   {
     key: "projects",
-    label: "Total Projects",
+    label: "Projects",
     icon: FolderOpen,
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
+    iconBg: "bg-primary-50",
+    iconColor: "text-primary-600",
   },
   {
     key: "links",
-    label: "Total Links",
+    label: "Links",
     icon: Link2,
     iconBg: "bg-violet-50",
     iconColor: "text-violet-600",
   },
   {
     key: "clicks",
-    label: "Total Clicks",
+    label: "Clicks",
     icon: MousePointerClick,
     iconBg: "bg-emerald-50",
     iconColor: "text-emerald-600",
@@ -50,7 +50,7 @@ export function DashboardStatsCards({
   };
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+    <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-8">
       {cards.map(({ key, label, icon, iconBg, iconColor }) => (
         <StatCard
           key={key}

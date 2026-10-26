@@ -3,6 +3,7 @@
 import { ComponentType, useEffect, useMemo, useState } from "react";
 import { LinkClick } from "@/lib/supabase";
 import { Globe, MapPin, Table2, X } from "lucide-react";
+import { Dialog } from "@/components/ui";
 import dynamic from "next/dynamic";
 
 const LeafletMapContainer = dynamic(
@@ -444,34 +445,35 @@ export function GeoInsightsPanel({ clicks }: { clicks: LinkClick[] }) {
   );
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-4 sm:p-6 mb-6 sm:mb-8">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
-          <Globe className="w-5 h-5 text-white" />
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <div aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+          <Globe className="h-[18px] w-[18px]" />
         </div>
         <div>
-          <h3 className="text-base sm:text-lg font-bold text-slate-900">
-            Geo Insights
+          <h3 className="text-base font-semibold text-slate-900">
+            Where clicks came from
           </h3>
-          <p className="text-xs text-slate-600">
-            Countries, states, and cities by clicks
+          <p className="text-sm text-slate-600">
+            Countries, states and cities by clicks
           </p>
         </div>
       </div>
 
       <>
-        <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-1 mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-1">
+        <div className="w-full rounded-lg border border-slate-200 bg-slate-50 p-1 mb-3" role="group" aria-label="Location level">
+          <div className="grid grid-cols-3 gap-1">
             {[
-              { id: "countries", label: "All Countries" },
-              { id: "states", label: "All States" },
-              { id: "cities", label: "All Cities" },
+              { id: "countries", label: "Countries" },
+              { id: "states", label: "States" },
+              { id: "cities", label: "Cities" },
             ].map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setDataScope(item.id as GeoDataScope)}
-                className={`w-full px-3 py-2 text-sm font-medium rounded-lg transition ${
+                aria-pressed={dataScope === item.id}
+                className={`w-full px-2 py-1.5 text-sm font-medium rounded-md transition ${
                   dataScope === item.id
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-600 hover:text-slate-800"
@@ -483,23 +485,24 @@ export function GeoInsightsPanel({ clicks }: { clicks: LinkClick[] }) {
           </div>
         </div>
 
-        <div className="inline-flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 mb-4">
+        <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 mb-4" role="group" aria-label="View">
           {[
             { id: "pins", label: "Pins", icon: MapPin },
-            { id: "choropleth", label: "Choropleth", icon: Globe },
-            { id: "demographic", label: "Demographic", icon: Table2 },
+            { id: "choropleth", label: "Heat map", icon: Globe },
+            { id: "demographic", label: "Table", icon: Table2 },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
               onClick={() => setActiveTab(id as GeoTab)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg transition ${
+              aria-pressed={activeTab === id}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition ${
                 activeTab === id
-                  ? "bg-white text-blue-700 shadow-sm"
+                  ? "bg-white text-primary-700 shadow-sm"
                   : "text-slate-600 hover:text-slate-800"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden />
               {label}
             </button>
           ))}
@@ -772,7 +775,7 @@ function PinMapPopup({
       <button
         type="button"
         onClick={onViewDetails}
-        className="mt-2 w-full px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+        className="mt-2 w-full px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition"
       >
         View Users
       </button>
@@ -811,50 +814,13 @@ function CreatorSubmissionsOverflowModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-      <div
-        className="clickable-backdrop absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden
-      />
-      <div
-        className="relative z-10 flex w-full max-w-md max-h-[min(80vh,420px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
-        role="dialog"
-        aria-labelledby="submissions-modal-title"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 shrink-0">
-          <div className="min-w-0">
-            <h4
-              id="submissions-modal-title"
-              className="text-sm font-bold text-slate-900 truncate"
-            >
-              {creator}
-            </h4>
-            <p className="text-xs text-slate-600 mt-0.5">All submissions</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition shrink-0"
-            aria-label="Close submissions"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="overflow-auto min-h-0 flex-1 px-4 py-4">
-          <div className="flex flex-wrap gap-2">
-            {submissions.map(({ submission, clicks }) => (
-              <SubmissionBadge
-                key={submission}
-                submission={submission}
-                clicks={clicks}
-              />
-            ))}
-          </div>
-        </div>
+    <Dialog open onClose={onClose} title={creator} description="All submissions" size="sm">
+      <div className="flex flex-wrap gap-2">
+        {submissions.map(({ submission, clicks }) => (
+          <SubmissionBadge key={submission} submission={submission} clicks={clicks} />
+        ))}
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -888,7 +854,7 @@ function CreatorSubmissionsCell({
           <button
             type="button"
             onClick={() => setShowAll(true)}
-            className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition"
+            className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50 hover:border-primary-300 transition"
           >
             +{hiddenCount} more
           </button>
@@ -937,7 +903,7 @@ function PinLocationDetailsModal({
             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
             aria-label="Close"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden />
           </button>
         </div>
 

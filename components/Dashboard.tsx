@@ -8,8 +8,18 @@ import { ProjectList, ProjectWithStats } from "./ProjectList";
 import { BrandList, BrandWithStats } from "./BrandList";
 import { DashboardStatsCards } from "./DashboardStatsCards";
 import { TitleSearchBar } from "./TitleSearchBar";
-import { NewProjectForm } from "./NewProjectForm";
-import { NewBrandForm } from "./NewBrandForm";
+import { NewProjectDialog } from "./dashboard/NewProjectDialog";
+import { NewBrandDialog } from "./dashboard/NewBrandDialog";
+import { AppPage } from "./app/AppPage";
+import {
+  Button,
+  DropdownMenu,
+  EmptyState,
+  LoadingBlock,
+  PageHeader,
+  Skeleton,
+  buttonClasses,
+} from "./ui";
 import { matchesTitleQuery } from "@/lib/search";
 import {
   fetchStatsForProjectIds,
@@ -20,13 +30,12 @@ import {
   isProjectSlugUnique,
 } from "@/lib/generators";
 import { isValidSlug, slugifyName } from "@/lib/slug-utils";
-import { LogOut, Plus, Briefcase } from "lucide-react";
+import { Briefcase, ChevronDown, FolderPlus, Link2, Plus } from "lucide-react";
 import toast from "react-hot-toast";
-import { BrandLogo } from "@/components/BrandLogo";
 import { useHideBotClicks } from "@/hooks/useHideBotClicks";
 
 export function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -424,21 +433,6 @@ export function Dashboard() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-2xl mb-4 animate-pulse shadow-lg p-2">
-            <BrandLogo size={48} />
-          </div>
-          <p className="text-slate-700 font-semibold text-lg">
-            Loading dashboard...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const handleSelectProject = (project: Project) => {
     router.push(`/dashboard/${project.id}`);
   };
@@ -449,199 +443,183 @@ export function Dashboard() {
 
   const hasAnyContent = brands.length > 0 || projects.length > 0;
 
+  const newMenu = (
+    <DropdownMenu
+      label="Create"
+      items={[
+        {
+          label: "New project",
+          description: "A campaign with its own links",
+          icon: FolderPlus,
+          onSelect: () => setShowNewProject(true),
+        },
+        {
+          label: "New brand",
+          description: "Groups projects; appears in URLs",
+          icon: Briefcase,
+          onSelect: () => setShowNewBrand(true),
+        },
+      ]}
+      trigger={(props) => (
+        <button {...props} type="button" className={buttonClasses({ variant: "primary" })}>
+          <Plus className="h-[18px] w-[18px]" aria-hidden />
+          New
+          <ChevronDown className="h-4 w-4" aria-hidden />
+        </button>
+      )}
+    />
+  );
+
+  const firstName =
+    (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ?? null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
-      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-900 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg p-1.5 sm:p-2">
-                <BrandLogo
-                  size={48}
-                  priority
-                  className="w-8 h-8 sm:w-10 sm:h-10"
-                />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  Linkto
-                </p>
-                <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-                  Branded links. Creator-level clarity.
-                </p>
-                <p className="text-xs sm:text-sm text-slate-600 truncate mt-0.5">
-                  {user?.email}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={signOut}
-              aria-label="Sign out"
-              className="group shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base text-slate-700 hover:text-red-600 bg-slate-100 hover:bg-red-50 rounded-xl transition-all duration-200 font-medium shadow-sm hover:shadow-md"
-            >
-              <LogOut className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
-          </div>
-        </div>
-      </header>
+    <AppPage>
+      <PageHeader
+        title={firstName ? `Hi, ${firstName}` : "Dashboard"}
+        description="Your brands and campaigns at a glance."
+        actions={newMenu}
+      />
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-6 sm:py-8 lg:py-10">
-        <DashboardStatsCards
-          totalProjects={projects.length}
-          totalLinks={totalLinks}
-          totalClicks={totalClicks}
-          clicksLabel={hideBots ? "Genuine Clicks" : "Total Clicks"}
-          loading={statsLoading}
-        />
+      <DashboardStatsCards
+        totalProjects={projects.length}
+        totalLinks={totalLinks}
+        totalClicks={totalClicks}
+        clicksLabel={hideBots ? "Genuine clicks" : "Total clicks"}
+        loading={statsLoading}
+      />
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-2">
-              Dashboard
-            </h2>
-            <p className="text-sm sm:text-base text-slate-600 font-medium">
-              Organize campaigns by brand
-            </p>
+      {loading ? (
+        <LoadingBlock label="Loading brands and projects">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-40" />
+            ))}
           </div>
-          <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
-            <button
-              onClick={() => setShowNewBrand(true)}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl transition-all font-semibold shadow-lg w-full sm:w-auto"
-            >
-              <Briefcase className="w-5 h-5" />
-              <span>New Brand</span>
-            </button>
-            <button
-              onClick={() => setShowNewProject(true)}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl transition-all font-semibold shadow-lg w-full sm:w-auto"
-            >
-              <Plus className="w-5 h-5" />
-              <span>New Project</span>
-            </button>
+        </LoadingBlock>
+      ) : !hasAnyContent ? (
+        <section aria-labelledby="get-started" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+          <h2 id="get-started" className="text-lg font-semibold text-slate-900">
+            Get started in three steps
+          </h2>
+          <ol className="mt-4 grid gap-4 sm:grid-cols-3">
+            {[
+              { icon: Briefcase, title: "Create a brand", text: "Optional. Groups campaigns and shows in URLs, e.g. linkto.in/acme/…" },
+              { icon: FolderPlus, title: "Add a project", text: "One campaign, like “Diwali launch”. Share its live report with clients." },
+              { icon: Link2, title: "Create links", text: "One per destination. Each creator shares their own tracking URL." },
+            ].map((step, i) => (
+              <li key={step.title} className="rounded-lg bg-slate-50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-semibold text-white">
+                    {i + 1}
+                  </span>
+                  <step.icon className="h-4 w-4 text-slate-600" aria-hidden />
+                  <h3 className="text-sm font-semibold text-slate-900">{step.title}</h3>
+                </div>
+                <p className="mt-2 text-sm text-slate-600">{step.text}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Button icon={FolderPlus} onClick={() => setShowNewProject(true)}>
+              New project
+            </Button>
+            <Button variant="secondary" icon={Briefcase} onClick={() => setShowNewBrand(true)}>
+              New brand
+            </Button>
           </div>
-        </div>
-
-        {!hasAnyContent ? (
-          <div className="bg-white rounded-2xl border-2 border-dashed border-slate-300 p-8 sm:p-12 text-center shadow-sm">
-            <h3 className="text-xl font-bold text-slate-900 mb-3">
-              Get started
-            </h3>
-            <p className="text-slate-600 mb-6 max-w-md mx-auto">
-              Create a brand to group related projects, or add a project
-              directly.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                onClick={() => setShowNewBrand(true)}
-                className="inline-flex items-center justify-center space-x-2 bg-violet-600 hover:bg-violet-700 text-white px-6 py-3 rounded-xl font-semibold"
-              >
-                <Briefcase className="w-5 h-5" />
-                <span>Create Brand</span>
-              </button>
-              <button
-                onClick={() => setShowNewProject(true)}
-                className="inline-flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Create Project</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {brands.length > 0 && (
-              <section className="mb-10">
-                <h3 className="text-xl font-bold text-slate-900 mb-4">
-                  Your Brands
-                </h3>
-                <TitleSearchBar
-                  value={brandSearch}
-                  onChange={setBrandSearch}
-                  placeholder="Search brands by name..."
-                  className="mb-6 max-w-md"
-                />
-                {brandsWithStats.length === 0 && brandSearch.trim() ? (
-                  <p className="text-slate-600 text-sm">
-                    No brands match &quot;{brandSearch.trim()}&quot;.
-                  </p>
-                ) : (
-                  <BrandList
-                    brands={brandsWithStats}
-                    onSelectBrand={handleSelectBrand}
-                    onDeleteBrand={handleDeleteBrand}
+        </section>
+      ) : (
+        <div className="space-y-10">
+          {brands.length > 0 && (
+            <section aria-labelledby="brands-heading">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 id="brands-heading" className="text-lg font-semibold text-slate-900">
+                  Brands
+                  <span className="ml-2 text-sm font-normal text-slate-600">{brands.length}</span>
+                </h2>
+                {brands.length > 3 && (
+                  <TitleSearchBar
+                    value={brandSearch}
+                    onChange={setBrandSearch}
+                    placeholder="Search brands…"
+                    className="w-full sm:w-64"
                   />
                 )}
-              </section>
-            )}
-
-            <section>
-              <h3 className="text-xl font-bold text-slate-900 mb-4">
-                Unbranded Projects
-              </h3>
-              {unbrandedProjects.length === 0 ? (
-                <p className="text-sm text-slate-600 mb-4">
-                  All projects are assigned to a brand. Open a brand to see them,
-                  or create a new unbranded project.
-                </p>
+              </div>
+              {brandsWithStats.length === 0 && brandSearch.trim() ? (
+                <EmptyState
+                  title={`No brands match “${brandSearch.trim()}”`}
+                  action={
+                    <Button variant="secondary" onClick={() => setBrandSearch("")}>
+                      Clear search
+                    </Button>
+                  }
+                />
               ) : (
-                <>
-                  <TitleSearchBar
-                    value={projectSearch}
-                    onChange={setProjectSearch}
-                    placeholder="Search projects by title..."
-                    className="mb-6 max-w-md"
-                  />
-                  {filteredUnbrandedWithStats.length === 0 ? (
-                    <p className="text-slate-600 text-sm">
-                      No projects match &quot;{projectSearch.trim()}&quot;.
-                    </p>
-                  ) : (
-                    <ProjectList
-                      projects={filteredUnbrandedWithStats}
-                      brands={brands}
-                      onSelectProject={handleSelectProject}
-                      onDeleteProject={handleDeleteProject}
-                      onMoveToBrand={handleMoveToBrand}
-                    />
-                  )}
-                </>
+                <BrandList
+                  brands={brandsWithStats}
+                  onSelectBrand={handleSelectBrand}
+                  onDeleteBrand={handleDeleteBrand}
+                />
               )}
             </section>
-          </>
-        )}
-      </main>
+          )}
 
-      {showNewProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-          <div
-            className="clickable-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowNewProject(false)}
-          />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <NewProjectForm
-              brands={brands}
-              onSubmit={handleCreateProject}
-              onCancel={() => setShowNewProject(false)}
-            />
-          </div>
+          <section aria-labelledby="unbranded-heading">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 id="unbranded-heading" className="text-lg font-semibold text-slate-900">
+                Projects without a brand
+                {unbrandedProjects.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-slate-600">{unbrandedProjects.length}</span>
+                )}
+              </h2>
+              {unbrandedProjects.length > 3 && (
+                <TitleSearchBar
+                  value={projectSearch}
+                  onChange={setProjectSearch}
+                  placeholder="Search projects…"
+                  className="w-full sm:w-64"
+                />
+              )}
+            </div>
+            {unbrandedProjects.length === 0 ? (
+              <p className="text-sm text-slate-600">
+                Every project belongs to a brand. Open a brand to see its projects.
+              </p>
+            ) : filteredUnbrandedWithStats.length === 0 ? (
+              <EmptyState
+                title={`No projects match “${projectSearch.trim()}”`}
+                action={
+                  <Button variant="secondary" onClick={() => setProjectSearch("")}>
+                    Clear search
+                  </Button>
+                }
+              />
+            ) : (
+              <ProjectList
+                projects={filteredUnbrandedWithStats}
+                brands={brands}
+                onSelectProject={handleSelectProject}
+                onDeleteProject={handleDeleteProject}
+                onMoveToBrand={handleMoveToBrand}
+              />
+            )}
+          </section>
         </div>
       )}
 
-      {showNewBrand && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-          <div
-            className="clickable-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowNewBrand(false)}
-          />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <NewBrandForm
-              onSubmit={handleCreateBrand}
-              onCancel={() => setShowNewBrand(false)}
-            />
-          </div>
-        </div>
-      )}
-    </div>
+      <NewProjectDialog
+        open={showNewProject}
+        onClose={() => setShowNewProject(false)}
+        brands={brands}
+        onSubmit={handleCreateProject}
+      />
+      <NewBrandDialog
+        open={showNewBrand}
+        onClose={() => setShowNewBrand(false)}
+        onSubmit={handleCreateBrand}
+      />
+    </AppPage>
   );
 }

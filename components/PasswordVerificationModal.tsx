@@ -1,19 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, X, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
+import { Button, Input } from "@/components/ui";
+import { PublicShell } from "@/components/public/PublicShell";
 
 interface PasswordVerificationModalProps {
   projectName: string;
   projectSlug: string;
   onVerify: (password: string) => Promise<boolean>;
-  onClose?: () => void;
 }
 
+/** Full-page password screen shown before a protected shared report. */
 export function PasswordVerificationModal({
   projectName,
   onVerify,
-  onClose,
 }: PasswordVerificationModalProps) {
   const [password, setPassword] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
@@ -24,7 +25,7 @@ export function PasswordVerificationModal({
     e.preventDefault();
 
     if (!password.trim()) {
-      setError("Please enter a password");
+      setError("Enter the password you were given.");
       return;
     }
 
@@ -35,7 +36,7 @@ export function PasswordVerificationModal({
       const isValid = await onVerify(password);
 
       if (!isValid) {
-        setError("Invalid password. Please try again.");
+        setError("That password didn't work. Check it and try again.");
         setPassword("");
         setShowPasswordText(false);
       }
@@ -43,7 +44,7 @@ export function PasswordVerificationModal({
       setError(
         err instanceof Error && err.message
           ? err.message
-          : "Failed to verify password. Please try again."
+          : "Couldn't check the password. Please try again."
       );
       console.error("Password verification error:", err);
     } finally {
@@ -52,118 +53,67 @@ export function PasswordVerificationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 border border-slate-200">
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
-
+    <PublicShell>
+      <div className="mx-auto mt-4 max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:mt-12 sm:p-8">
         <div className="mb-6 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-4">
-            <Lock className="w-8 h-8 text-purple-600" />
+          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary-50">
+            <Lock className="h-6 w-6 text-primary-600" aria-hidden />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">
-            Protected Project
-          </h2>
-          <p className="text-slate-600">
-            Enter the password to view <strong>{projectName}</strong>
+          <h1 className="text-xl font-semibold text-slate-900">{projectName}</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            This report is password-protected.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-slate-700 mb-2"
-            >
-              Access Password
+            <label htmlFor="report-password" className="mb-1.5 block text-sm font-medium text-slate-800">
+              Password
             </label>
             <div className="relative">
-              <input
-                id="password"
+              <Input
+                id="report-password"
                 type={showPasswordText ? "text" : "password"}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
                   setError("");
                 }}
-                className={`w-full px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition ${
-                  error
-                    ? "border-red-300 bg-red-50"
-                    : "border-slate-300 bg-white"
-                }`}
-                placeholder="Enter password"
+                invalid={Boolean(error)}
+                aria-describedby={error ? "report-password-error" : undefined}
+                autoComplete="current-password"
                 autoFocus
                 disabled={isVerifying}
+                fullWidth
+                className="pr-11"
               />
               <button
                 type="button"
-                onClick={() => setShowPasswordText(!showPasswordText)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                onClick={() => setShowPasswordText((v) => !v)}
+                className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                 disabled={isVerifying}
-                title={showPasswordText ? "Hide password" : "Show password"}
+                aria-label={showPasswordText ? "Hide password" : "Show password"}
+                aria-pressed={showPasswordText}
               >
-                {showPasswordText ? (
-                  <EyeOff className="w-5 h-5" />
-                ) : (
-                  <Eye className="w-5 h-5" />
-                )}
+                {showPasswordText ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
               </button>
             </div>
             {error && (
-              <p className="mt-2 text-sm text-red-600 flex items-center">
-                <span className="mr-1">⚠️</span> {error}
+              <p id="report-password-error" role="alert" className="mt-1.5 text-sm text-rose-700">
+                {error}
               </p>
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={isVerifying}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition disabled:bg-purple-400 disabled:cursor-not-allowed"
-          >
-            {isVerifying ? (
-              <span className="flex items-center justify-center">
-                <svg
-                  className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Verifying...
-              </span>
-            ) : (
-              "Access Project"
-            )}
-          </button>
+          <Button type="submit" size="lg" loading={isVerifying} className="w-full">
+            {isVerifying ? "Checking…" : "View report"}
+          </Button>
         </form>
 
-        <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-          <p className="text-xs text-slate-600">
-            <strong>Note:</strong> This project is password-protected. Contact
-            the project owner if you need access.
-          </p>
-        </div>
+        <p className="mt-6 text-center text-xs text-slate-600">
+          Don&apos;t have the password? Ask the person who shared this link.
+        </p>
       </div>
-    </div>
+    </PublicShell>
   );
 }

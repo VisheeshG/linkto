@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
+import NextLink from "next/link";
 import { BrandLogo } from "@/components/BrandLogo";
+import { Button, Field, Input } from "@/components/ui";
 
 export function Auth({ mode = "signin" }: { mode?: "signin" | "signup" }) {
   const [isSignUp, setIsSignUp] = useState(mode === "signup");
@@ -64,145 +66,114 @@ export function Auth({ mode = "signin" }: { mode?: "signin" | "signup" }) {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl mb-4 bg-slate-900 shadow-lg">
-              <BrandLogo size={48} priority />
-            </div>
-            <p className="text-sm font-semibold text-slate-500 tracking-wide uppercase mb-1">
-              Linkto
-            </p>
-            <h1 className="text-3xl font-bold text-slate-900">
-              {isSignUp ? "Create Account" : "Welcome Back"}
-            </h1>
-            <p className="text-slate-600 mt-2">
-              {isSignUp
-                ? "Start tracking your links today"
-                : "Sign in to your account"}
-            </p>
-          </div>
+  const switchMode = () => {
+    setError("");
+    setIsSignUp(!isSignUp);
+  };
 
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <NextLink href="/" className="inline-flex items-center gap-2 rounded-lg" aria-label="Linkto home">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 p-1.5 shadow-sm">
+              <BrandLogo size={40} priority className="h-7 w-7" />
+            </span>
+            <span className="text-lg font-bold tracking-tight text-slate-900">Linkto</span>
+          </NextLink>
+          <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
+            {isSignUp ? "Create your account" : "Welcome back"}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {isSignUp
+              ? "Track every creator click with branded links."
+              : "Sign in to see your campaigns."}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
-              <>
-                <div>
-                  <label
-                    htmlFor="fullName"
-                    className="block text-sm font-medium text-slate-700 mb-1"
-                  >
-                    Full Name
-                  </label>
-                  <input
-                    id="fullName"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                    required
-                  />
-                </div>
-              </>
+              <Field label="Full name">
+                <Input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                  required
+                  fullWidth
+                />
+              </Field>
             )}
 
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-slate-700 mb-1"
-              >
-                Email
-              </label>
-              <input
-                id="email"
+            <Field label="Email">
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                autoComplete="email"
+                inputMode="email"
                 required
+                fullWidth
               />
-            </div>
+            </Field>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-slate-700 mb-1"
-              >
+              <label htmlFor="auth-password" className="mb-1.5 block text-sm font-medium text-slate-800">
                 Password
               </label>
               <div className="relative">
-                <input
-                  id="password"
+                <Input
+                  id="auth-password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
+                  aria-describedby={isSignUp ? "auth-password-hint" : undefined}
                   required
                   minLength={6}
+                  fullWidth
+                  className="pr-11"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                  className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                   aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
                 </button>
               </div>
+              {isSignUp && (
+                <p id="auth-password-hint" className="mt-1.5 text-xs text-slate-600">
+                  At least 6 characters.
+                </p>
+              )}
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
                 {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading
-                ? "Processing..."
-                : isSignUp
-                ? "Create Account"
-                : "Sign In"}
-            </button>
+            <Button type="submit" size="lg" loading={loading} className="w-full">
+              {isSignUp ? "Create account" : "Sign in"}
+            </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            {isSignUp ? (
-              <button
-                onClick={() => {
-                  setIsSignUp(false);
-                  setError("");
-                  // Navigate to login route for clarity
-                  router.push("/login");
-                }}
-                className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer text-sm"
-              >
-                Already have an account? Sign in
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsSignUp(true);
-                  setError("");
-                  // Navigate to signup route
-                  router.push("/signup");
-                }}
-                className="text-blue-600 cursor-pointer hover:text-blue-700 font-medium text-sm"
-              >
-                Don&apos;t have an account? Sign up
-              </button>
-            )}
-          </div>
         </div>
+
+        <p className="mt-6 text-center text-sm text-slate-600">
+          {isSignUp ? "Already have an account? " : "New to Linkto? "}
+          <NextLink
+            href={isSignUp ? "/login" : "/signup"}
+            onClick={switchMode}
+            className="font-semibold text-primary-700 hover:text-primary-800"
+          >
+            {isSignUp ? "Sign in" : "Create an account"}
+          </NextLink>
+        </p>
       </div>
     </div>
   );

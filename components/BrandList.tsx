@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Briefcase, MoreHorizontal, Trash2 } from "lucide-react";
 import { Brand } from "@/lib/supabase";
-import { Briefcase, Trash2, AlertTriangle, Link2, MousePointerClick } from "lucide-react";
-import { LastEditedLabel } from "./LastEditedLabel";
+import { ConfirmDialog, DropdownMenu } from "@/components/ui";
+import { formatNumber, formatRelative } from "@/lib/format";
 
 export type BrandWithStats = Brand & {
   projectCount: number;
@@ -17,143 +18,100 @@ interface BrandListProps {
   onDeleteBrand: (brandId: string) => void | Promise<void>;
 }
 
-export function BrandList({
-  brands,
-  onSelectBrand,
-  onDeleteBrand,
-}: BrandListProps) {
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    show: boolean;
-    brandId: string | null;
-    brandName: string | null;
-  }>({ show: false, brandId: null, brandName: null });
-
-  const handleDelete = (
-    e: React.MouseEvent,
-    brandId: string,
-    brandName: string
-  ) => {
-    e.stopPropagation();
-    setDeleteConfirm({ show: true, brandId, brandName });
-  };
-
-  const confirmDelete = async () => {
-    if (deleteConfirm.brandId) {
-      const brandId = deleteConfirm.brandId;
-      setDeleteConfirm({ show: false, brandId: null, brandName: null });
-      await onDeleteBrand(brandId);
-    }
-  };
-
-  const cancelDelete = () => {
-    setDeleteConfirm({ show: false, brandId: null, brandName: null });
-  };
+export function BrandList({ brands, onSelectBrand, onDeleteBrand }: BrandListProps) {
+  const [pendingDelete, setPendingDelete] = useState<BrandWithStats | null>(null);
 
   if (brands.length === 0) return null;
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
         {brands.map((brand) => (
-          <div
-            key={brand.id}
-            className="clickable-card relative bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-violet-300 transition group"
-          >
-            <button
-              type="button"
-              onClick={() => onSelectBrand(brand)}
-              className="absolute inset-0 z-0 w-full h-full rounded-xl cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-              aria-label={`Open brand ${brand.name}`}
-            />
-
-            <div className="relative z-10 p-4 sm:p-6 pointer-events-none">
-              <div className="flex items-start justify-between mb-3 sm:mb-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-violet-50 rounded-lg flex items-center justify-center group-hover:bg-violet-100 transition flex-shrink-0">
-                  <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-violet-600" />
+          <li key={brand.id}>
+            <article className="group relative flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-violet-300 focus-within:border-violet-300 sm:p-5">
+              <div className="flex items-start gap-3">
+                <div aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+                  <Briefcase className="h-5 w-5" />
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => handleDelete(e, brand.id, brand.name)}
-                  className="relative z-20 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition opacity-100 sm:opacity-0 group-hover:opacity-100 pointer-events-auto cursor-pointer"
-                  aria-label={`Delete ${brand.name}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-semibold leading-snug text-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => onSelectBrand(brand)}
+                      className="text-left break-words hover:text-violet-700 after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+                    >
+                      {brand.name}
+                    </button>
+                  </h3>
+                  <p className="mt-0.5 truncate font-mono text-xs text-slate-600">/{brand.slug}</p>
+                </div>
+                <div className="relative z-20">
+                  <DropdownMenu
+                    label={`Actions for ${brand.name}`}
+                    items={[
+                      {
+                        label: "Delete brand",
+                        description: "Projects move to unbranded",
+                        icon: Trash2,
+                        tone: "danger",
+                        onSelect: () => setPendingDelete(brand),
+                      },
+                    ]}
+                    trigger={(props) => (
+                      <button
+                        {...props}
+                        type="button"
+                        aria-label={`More actions for ${brand.name}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden />
+                      </button>
+                    )}
+                  />
+                </div>
               </div>
-
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-1 group-hover:text-violet-600 transition break-words text-left">
-                {brand.name}
-              </h3>
 
               {brand.description && (
-                <p className="text-sm text-slate-600 mb-3 line-clamp-2 text-left">
-                  {brand.description}
-                </p>
+                <p className="mt-3 line-clamp-2 text-sm text-slate-600">{brand.description}</p>
               )}
 
-              <LastEditedLabel
-                updatedAt={brand.updated_at}
-                createdAt={brand.created_at}
-                className="mb-2"
-              />
-
-              <div className="flex flex-wrap gap-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                <span className="font-medium">
-                  {brand.projectCount} project
-                  {brand.projectCount !== 1 ? "s" : ""}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Link2 className="w-3 h-3" />
-                  {brand.linkCount.toLocaleString()} links
-                </span>
-                <span className="flex items-center gap-1">
-                  <MousePointerClick className="w-3 h-3" />
-                  {brand.clickCount.toLocaleString()} clicks
-                </span>
-              </div>
-            </div>
-          </div>
+              <div aria-hidden className="min-h-4 flex-1" />
+              <dl className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-center">
+                {[
+                  { label: brand.projectCount === 1 ? "project" : "projects", value: brand.projectCount },
+                  { label: brand.linkCount === 1 ? "link" : "links", value: brand.linkCount },
+                  { label: brand.clickCount === 1 ? "click" : "clicks", value: brand.clickCount },
+                ].map((stat) => (
+                  <div key={stat.label}>
+                    <dd className="text-base font-semibold tabular-nums text-slate-900">{formatNumber(stat.value)}</dd>
+                    <dt className="text-xs text-slate-600">{stat.label}</dt>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-2 text-xs text-slate-600">
+                Edited {formatRelative(brand.updated_at || brand.created_at) ?? "—"}
+              </p>
+            </article>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      {deleteConfirm.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-          <div
-            className="clickable-backdrop absolute inset-0 bg-black/50"
-            onClick={cancelDelete}
-          />
-          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-lg p-4 sm:p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900">
-                Delete Brand
-              </h3>
-            </div>
-            <p className="text-sm sm:text-base text-slate-600 mb-4">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold">{deleteConfirm.brandName}</span>?
-              Projects in this brand will move to Unbranded. This action cannot
-              be undone.
-            </p>
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-              <button
-                onClick={confirmDelete}
-                className="w-full sm:flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition font-medium"
-              >
-                Delete
-              </button>
-              <button
-                onClick={cancelDelete}
-                className="w-full sm:flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-lg transition font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete) await onDeleteBrand(pendingDelete.id);
+        }}
+        title="Delete this brand?"
+        description={
+          <>
+            <strong>{pendingDelete?.name}</strong> will be deleted. Its projects,
+            links and click data are kept and move to <em>Unbranded</em>, but
+            branded tracking URLs (/{pendingDelete?.slug}/…) stop working.
+          </>
+        }
+        confirmLabel="Delete brand"
+      />
     </>
   );
 }
