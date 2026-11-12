@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { TtlCache } from "@/lib/ttl-cache";
 
 export type ResolvedLink = {
   id: string;
@@ -9,6 +10,8 @@ export type ResolvedLink = {
   include_submission_in_url?: boolean;
   utm_enabled?: boolean;
   expires_at?: string | null;
+  /** Append a click ID (`lt_id`) to the destination for conversion tracking. */
+  click_id_enabled?: boolean;
   project_slug: string;
 };
 
@@ -52,6 +55,9 @@ function toResolvedLink(row: Record<string, unknown>, projectSlug: string): Reso
     include_submission_in_url: (row.include_submission_in_url as boolean | undefined) ?? false,
     utm_enabled: (row.utm_enabled as boolean | undefined) ?? false,
     expires_at: (row.expires_at as string | null | undefined) ?? null,
+    // Off when the column is missing: click IDs need the conversion-tracking
+    // migration, and must not be handed out before it has run.
+    click_id_enabled: (row.click_id_enabled as boolean | undefined) ?? false,
     project_slug: projectSlug,
   };
 }
@@ -166,3 +172,53 @@ export async function resolveTrackingPath(
 
   return { result: firstError ?? legacy, additionalParams: path.slice(1) };
 }
+
+const FOUND_TTL_MS = 30_000;
+const NOT_FOUND_TTL_MS = 10_000;
+
+type CachedResolution = { result: ResolveResult; additionalParamsFrom: number };
+
+/**
+ * resolveTrackingPath with a short in-memory cache, so a busy link costs the
+ * database one lookup per instance every 30 seconds instead of two or three
+ * per click. Edits to a link therefore take up to 30 seconds to reach
+ * redirects. Database errors are never cached.
+ */
+export function createCachedTrackingPathResolver(
+  options: { maxEntries?: number; now?: () => number } = {}
+) {
+  const cache = new TtlCache<CachedResolution>(options.maxEntries ?? 5000, options.now);
+
+  const resolve = async (
+    supabase: SupabaseClient,
+    firstSegment: string,
+    path: string[]
+  ): Promise<{ result: ResolveResult; additionalParams: string[] }> => {
+    // The outcome depends only on the segments that can name a link.
+    const key = [firstSegment, path[0] ?? "", path.length >= 3 ? path[1] : ""].join("\u0000");
+    const cached = cache.get(key);
+    if (cached) {
+      return {
+        result: cached.result,
+        additionalParams: path.slice(cached.additionalParamsFrom),
+      };
+    }
+
+    const resolved = await resolveTrackingPath(supabase, firstSegment, path);
+    if (resolved.result.status !== "error") {
+      cache.set(
+        key,
+        {
+          result: resolved.result,
+          additionalParamsFrom: path.length - resolved.additionalParams.length,
+        },
+        resolved.result.status === "found" ? FOUND_TTL_MS : NOT_FOUND_TTL_MS
+      );
+    }
+    return resolved;
+  };
+
+  return Object.assign(resolve, { clear: () => cache.clear() });
+}
+
+export const resolveTrackingPathCached = createCachedTrackingPathResolver();

@@ -36,6 +36,8 @@ import { useHideBotClicks } from "@/hooks/useHideBotClicks";
 import { describeError } from "@/lib/describe-error";
 import { formatNumber } from "@/lib/format";
 import { StatCard } from "./StatCard";
+import { ConversionsPanel } from "./analytics/ConversionsPanel";
+import { OWNER_CLICK_SOURCE } from "@/lib/click-source";
 import { ClicksAnalyticsChart } from "./ClicksAnalyticsChart";
 import { GeoInsightsPanelClient } from "./GeoInsightsPanelLazy";
 import { AnalyticsToolbar } from "./analytics/AnalyticsToolbar";
@@ -122,6 +124,7 @@ function TopLinksCard({ rows }: { rows: LinkRow[] }) {
 
 export function BrandAnalyticsPanel({ projectIds, projects = [] }: BrandAnalyticsPanelProps) {
   const [links, setLinks] = useState<Link[]>([]);
+  const linkIds = useMemo(() => links.map((l) => l.id), [links]);
   const [allClicks, setClicks] = useState<LinkClick[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -317,6 +320,15 @@ export function BrandAnalyticsPanel({ projectIds, projects = [] }: BrandAnalytic
       </div>
 
       <GeoInsightsPanelClient clicks={analytics.filteredClicks} />
+
+      <ConversionsPanel
+        source={OWNER_CLICK_SOURCE}
+        linkIds={linkIds}
+        startDate={startDate}
+        endDate={endDate}
+        hideBots={hideBots}
+        title="Conversions"
+      />
     </div>
   );
 }

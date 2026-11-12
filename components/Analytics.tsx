@@ -22,6 +22,7 @@ import { AnalyticsToolbar, type DateRangeState } from "./analytics/AnalyticsTool
 import { BreakdownCard } from "./analytics/BreakdownCard";
 import { CreatorDetailDialog } from "./analytics/CreatorDetailDialog";
 import { CreatorTable } from "./analytics/CreatorTable";
+import { ConversionsPanel } from "./analytics/ConversionsPanel";
 import { LinkSetupPanel } from "./analytics/LinkSetupPanel";
 import { TrafficQualityCard } from "./analytics/TrafficQualityCard";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -49,6 +50,7 @@ import {
   Settings2,
   Share2,
   Smartphone,
+  Target,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -102,7 +104,7 @@ interface AnalyticsProps {
   projectName?: string;
 }
 
-type AnalyticsTab = "overview" | "creators" | "audience" | "map" | "setup";
+type AnalyticsTab = "overview" | "creators" | "conversions" | "audience" | "map" | "setup";
 
 
 export function Analytics({
@@ -678,6 +680,7 @@ export function Analytics({
       : "";
 
   const owner = clickSource.kind === "owner";
+  const conversionLinkIds = useMemo(() => [link.id], [link.id]);
   const expired = link.expires_at ? new Date(link.expires_at) <= new Date() : false;
   const topOf = (record: Record<string, number>) =>
     Object.entries(record).sort((x, y) => y[1] - x[1])[0] ?? null;
@@ -821,6 +824,7 @@ export function Analytics({
   const tabs: TabItem<AnalyticsTab>[] = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "creators", label: "Creators", icon: Users, count: sortedCreatorRows.length },
+    { id: "conversions", label: "Conversions", icon: Target },
     { id: "audience", label: "Audience", icon: Globe2 },
     { id: "map", label: "Map", icon: MapIcon },
     { id: "setup", label: "Setup", icon: Settings2 },
@@ -956,6 +960,19 @@ export function Analytics({
                 onSort={handleCreatorTableSort}
                 onOpenCreator={loadCreatorAnalytics}
               />
+            </TabPanel>
+
+            <TabPanel id="conversions" active={activeTab} idPrefix="link-analytics">
+              {activeTab === "conversions" && (
+                <ConversionsPanel
+                  source={clickSource}
+                  linkIds={conversionLinkIds}
+                  startDate={startDate}
+                  endDate={endDate}
+                  hideBots={hideBots}
+                  filtersActive={Object.values(clickFilters).some((v) => v !== FILTER_ALL)}
+                />
+              )}
             </TabPanel>
 
             <TabPanel

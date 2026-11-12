@@ -9,6 +9,8 @@ import { LinkList } from "./LinkList";
 import { TitleSearchBar } from "./TitleSearchBar";
 import { matchesTitleQuery } from "@/lib/search";
 import { Analytics } from "./Analytics";
+import { ConversionsPanel } from "./analytics/ConversionsPanel";
+import { OWNER_CLICK_SOURCE } from "@/lib/click-source";
 import { generateUniqueShortCode } from "@/lib/generators";
 import {
   countClicksPerLink,
@@ -32,7 +34,7 @@ import { formatNumber, formatRelative } from "@/lib/format";
 
 type LinkSort = "clicks" | "newest" | "edited" | "name";
 
-type LinkExtras = Pick<LinkFormValues, "utm_enabled" | "expires_at">;
+type LinkExtras = Pick<LinkFormValues, "utm_enabled" | "expires_at" | "click_id_enabled">;
 
 interface ProjectDetailsProps {
   project: Project;
@@ -116,6 +118,8 @@ function ProjectDetailsContent({
       }
     });
   }, [links, linkSearch, linkSort, linkClickCounts]);
+
+  const allLinkIds = useMemo(() => links.map((l) => l.id), [links]);
 
   const topLink = useMemo(() => {
     if (!linkClickCounts || links.length === 0) return null;
@@ -348,6 +352,9 @@ function ProjectDetailsContent({
           include_submission_in_url: includeSubmissionInUrl,
           utm_enabled: extras.utm_enabled,
           expires_at: extras.expires_at,
+          ...(extras.click_id_enabled === undefined
+            ? {}
+            : { click_id_enabled: extras.click_id_enabled }),
         })
         .select()
         .single();
@@ -581,6 +588,17 @@ function ProjectDetailsContent({
         )}
       </section>
 
+      {links.length > 0 && (
+        <div className="mt-10">
+          <ConversionsPanel
+            source={OWNER_CLICK_SOURCE}
+            linkIds={allLinkIds}
+            hideBots={hideBots}
+            title="Conversions"
+          />
+        </div>
+      )}
+
       <LinkFormDialog
         open={showNewLink}
         onClose={() => setShowNewLink(false)}
@@ -593,7 +611,11 @@ function ProjectDetailsContent({
             newShortCode,
             values.open_app_on_mobile,
             values.include_submission_in_url,
-            { utm_enabled: values.utm_enabled, expires_at: values.expires_at }
+            {
+              utm_enabled: values.utm_enabled,
+              expires_at: values.expires_at,
+              click_id_enabled: values.click_id_enabled,
+            }
           )
         }
       />

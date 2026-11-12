@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
   handleTrackingRedirect,
   linkNotFoundResponse,
-  resolveTrackingPath,
+  resolveTrackingPathCached,
   serviceUnavailableResponse,
 } from "@/lib/tracking-redirect";
 
@@ -43,7 +43,7 @@ export async function GET(
 
   try {
     const { projectSlug: firstSegment, path } = await params;
-    const { result, additionalParams } = await resolveTrackingPath(
+    const { result, additionalParams } = await resolveTrackingPathCached(
       supabase,
       firstSegment,
       path

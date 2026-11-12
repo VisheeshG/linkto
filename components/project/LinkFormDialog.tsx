@@ -21,6 +21,11 @@ export type LinkFormValues = {
   include_submission_in_url: boolean;
   utm_enabled: boolean;
   expires_at: string | null;
+  /**
+   * Only present when it differs from the saved (or default) value, so
+   * saving a link never depends on the conversion-tracking migration.
+   */
+  click_id_enabled?: boolean;
 };
 
 const PLATFORM_SUGGESTIONS = [
@@ -86,6 +91,8 @@ export function LinkFormDialog({
 }) {
   const isEdit = Boolean(link);
   const [values, setValues] = useState<LinkFormValues>(() => initialValues(link));
+  const savedClickIdEnabled = link?.click_id_enabled ?? true;
+  const [clickIdEnabled, setClickIdEnabled] = useState(savedClickIdEnabled);
   const [expiresInput, setExpiresInput] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -96,11 +103,16 @@ export function LinkFormDialog({
     const next = initialValues(link);
     setValues(next);
     setExpiresInput(isoToLocalInput(link?.expires_at));
+    setClickIdEnabled(link?.click_id_enabled ?? true);
     setErrors({});
     setShowAdvanced(
       Boolean(
         link &&
-          (link.include_submission_in_url || link.open_app_on_mobile || link.utm_enabled || link.expires_at)
+          (link.include_submission_in_url ||
+            link.open_app_on_mobile ||
+            link.utm_enabled ||
+            link.expires_at ||
+            link.click_id_enabled === false)
       )
     );
   }, [open, link]);
@@ -126,6 +138,7 @@ export function LinkFormDialog({
         platform: values.platform.trim(),
         destination_url: values.destination_url.trim(),
         expires_at: localInputToIso(expiresInput),
+        ...(clickIdEnabled !== savedClickIdEnabled ? { click_id_enabled: clickIdEnabled } : {}),
       });
       if (ok) onClose();
     } finally {
@@ -237,6 +250,12 @@ export function LinkFormDialog({
                 onChange={(v) => set("utm_enabled", v)}
                 title="Add UTM tags"
                 description="Lets the destination's own analytics see the platform, project and creator. Existing UTM tags are kept."
+              />
+              <CheckboxField
+                checked={clickIdEnabled}
+                onChange={setClickIdEnabled}
+                title="Track signups and purchases"
+                description="Adds a click ID (lt_id) to the destination URL so the brand's site can report what each visitor did. Turn off if the destination rejects extra URL parameters."
               />
               <Field
                 label="Expires"

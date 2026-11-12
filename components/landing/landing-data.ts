@@ -16,6 +16,8 @@ export const LOGO_NAMES = [
 
 export const COMPARISON_ROWS = [
   "Creator attribution",
+  "Signup and purchase tracking",
+  "Revenue per creator",
   "Branded campaign URLs",
   "Campaign organization",
   "Client-ready reporting",

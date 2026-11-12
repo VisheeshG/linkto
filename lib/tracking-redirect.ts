@@ -14,6 +14,7 @@ import {
 import { lookupGeo } from "@/lib/geo";
 import { computeVisitorHash } from "@/lib/visitor";
 import { applyUtmParameters } from "@/lib/utm";
+import { appendClickId, generateClickId } from "@/lib/click-id";
 import type { ResolvedLink } from "@/lib/link-resolution";
 
 export type { ResolvedLink, ResolveResult } from "@/lib/link-resolution";
@@ -21,6 +22,7 @@ export {
   resolveLinkByBrandProjectAndShortCode,
   resolveLinkByProjectSlugAndShortCode,
   resolveTrackingPath,
+  resolveTrackingPathCached,
 } from "@/lib/link-resolution";
 
 export function parseCreatorAndSubmission(
@@ -125,7 +127,19 @@ type ClickContext = {
   acceptLanguage: string | null;
   referrer: string | null;
   headers: Headers;
+  /** ID appended to the destination URL, when conversion tracking is on. */
+  clickId?: string | null;
 };
+
+type DbError = { code?: string; message?: string };
+
+/** The click_id column is missing (conversion-tracking migration not run yet). */
+function isMissingClickIdColumn(error: DbError): boolean {
+  return (
+    (error.code === "PGRST204" || error.code === "42703") &&
+    /click_id/.test(error.message ?? "")
+  );
+}
 
 /** Geo lookup + bot classification + insert. Runs after the response is sent. */
 export async function recordClick(
@@ -159,7 +173,7 @@ export async function recordClick(
     recentClicksFromVisitor: recentClicks,
   });
 
-  const { error } = await supabase.from("link_clicks").insert({
+  const row = {
     link_id: ctx.link.id,
     platform_name: ctx.link.platform,
     creator_username: ctx.creatorUsername,
@@ -180,7 +194,16 @@ export async function recordClick(
     traffic_type: classification.trafficType,
     bot_reason: classification.reason,
     clicked_at: new Date().toISOString(),
-  });
+  };
+
+  let { error } = await supabase
+    .from("link_clicks")
+    .insert(ctx.clickId ? { ...row, click_id: ctx.clickId } : row);
+
+  // Never lose a click because the schema is behind the code.
+  if (error && ctx.clickId && isMissingClickIdColumn(error)) {
+    ({ error } = await supabase.from("link_clicks").insert(row));
+  }
 
   if (error) {
     console.error("Tracking error:", error);
@@ -205,6 +228,26 @@ export function handleTrackingRedirect(
   const userAgent = request.headers.get("user-agent") || "";
   const { deviceType, os } = parseUserAgent(userAgent);
 
+  const utmUrl = link.utm_enabled
+    ? applyUtmParameters(link.destination_url, {
+        platform: link.platform,
+        projectSlug: link.project_slug,
+        creatorUsername: parsed.creatorUsername,
+        submissionNumber: parsed.submissionNumber,
+      })
+    : link.destination_url;
+
+  const isMobileDevice = deviceType === "mobile" || deviceType === "tablet";
+  const appTargets =
+    link.open_app_on_mobile && isMobileDevice
+      ? resolveMobileAppRedirect(utmUrl, os)
+      : null;
+  const opensApp = !!appTargets && !!(appTargets.appUrl || appTargets.androidIntent);
+
+  // A native app cannot report conversions back, so app deep links keep their
+  // exact URL and only web destinations carry a click ID.
+  const clickId = link.click_id_enabled && !opensApp ? generateClickId() : null;
+
   // Record the click after the response is sent so the visitor never waits
   // on geolocation or the database.
   after(() =>
@@ -218,34 +261,21 @@ export function handleTrackingRedirect(
       acceptLanguage: request.headers.get("accept-language"),
       referrer: request.headers.get("referer"),
       headers: request.headers,
+      clickId,
     }).catch((error) => console.error("Tracking error:", error))
   );
 
-  const destinationUrl = link.utm_enabled
-    ? applyUtmParameters(link.destination_url, {
-        platform: link.platform,
-        projectSlug: link.project_slug,
-        creatorUsername: parsed.creatorUsername,
-        submissionNumber: parsed.submissionNumber,
-      })
-    : link.destination_url;
-
-  const isMobileDevice = deviceType === "mobile" || deviceType === "tablet";
-
-  if (link.open_app_on_mobile && isMobileDevice) {
-    const appTargets = resolveMobileAppRedirect(destinationUrl, os);
-    if (appTargets && (appTargets.appUrl || appTargets.androidIntent)) {
-      return new NextResponse(buildMobileAppRedirectHtml(appTargets), {
-        status: 200,
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "no-store",
-        },
-      });
-    }
+  if (opensApp && appTargets) {
+    return new NextResponse(buildMobileAppRedirectHtml(appTargets), {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
-  return NextResponse.redirect(destinationUrl, {
+  return NextResponse.redirect(clickId ? appendClickId(utmUrl, clickId) : utmUrl, {
     status: 307,
     headers: { "Cache-Control": "no-store" },
   });

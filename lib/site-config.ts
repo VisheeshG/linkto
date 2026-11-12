@@ -1,9 +1,9 @@
 /** Central brand + SEO config (single source of truth). */
 export const siteConfig = {
   name: "Linkto",
-  tagline: "Branded links. Creator-level clarity.",
+  tagline: "Creator links tracked from click to purchase.",
   description:
-    "Linkto is a creator-focused link tracking platform for brands, agencies, and marketers. Track every creator-driven click with branded URLs, campaign analytics, geo insights, and client-ready reports.",
+    "Linkto tracks creator links from the click through to the visit, signup and purchase. Give each creator a branded link and see the signups, sales and revenue they drive, without building a referral system.",
   url:
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
     "https://linkto.in",
@@ -15,6 +15,8 @@ export const siteConfig = {
     "campaign analytics",
     "UTM alternative",
     "creator attribution",
+    "conversion tracking",
+    "influencer sales tracking",
     "agency reporting",
     "linkto",
   ],
