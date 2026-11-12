@@ -8,6 +8,7 @@ import { LinkList } from "@/components/LinkList";
 import { TitleSearchBar } from "@/components/TitleSearchBar";
 import { matchesTitleQuery } from "@/lib/search";
 import { Analytics } from "@/components/Analytics";
+import { ConversionsPanel } from "@/components/analytics/ConversionsPanel";
 import { PasswordVerificationModal } from "@/components/PasswordVerificationModal";
 import { useHideBotClicks } from "@/hooks/useHideBotClicks";
 import type { ClickSource } from "@/lib/click-source";
@@ -362,6 +363,16 @@ export default function PublicProjectPage() {
           />
         )}
       </section>
+
+      <div className="mt-8">
+        <ConversionsPanel
+          source={clickSource}
+          linkIds={null}
+          hideBots={hideBots}
+          title="After the click"
+          hideWhenEmpty
+        />
+      </div>
     </PublicShell>
   );
 }

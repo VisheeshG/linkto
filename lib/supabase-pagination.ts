@@ -72,9 +72,21 @@ export async function countClicksForLinkIds(
   return total;
 }
 
+const RPC_LINK_ID_CHUNK = 500;
+
+/** The function is missing (conversion-tracking migration not run yet). */
+function isMissingFunctionError(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === "PGRST202" ||
+    error.code === "42883" ||
+    /could not find the function|does not exist/i.test(error.message ?? "")
+  );
+}
+
 /**
- * Click count for each link (head-only count queries, a few at a time).
- * Returns { [linkId]: count }.
+ * Click count for each link: { [linkId]: count }.
+ * One grouped query per 500 links (click_counts_per_link); falls back to one
+ * count query per link on a database that does not have the function yet.
  */
 export async function countClicksPerLink(
   client: SupabaseClient,
@@ -82,6 +94,25 @@ export async function countClicksPerLink(
   options?: CountOptions
 ): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
+  for (const id of linkIds) counts[id] = 0;
+  if (linkIds.length === 0) return counts;
+
+  try {
+    for (let i = 0; i < linkIds.length; i += RPC_LINK_ID_CHUNK) {
+      const { data, error } = await client.rpc("click_counts_per_link", {
+        p_link_ids: linkIds.slice(i, i + RPC_LINK_ID_CHUNK),
+        p_human_only: options?.humanOnly ?? false,
+      });
+      if (error) throw error;
+      for (const row of (data as { link_id: string; clicks: number }[] | null) ?? []) {
+        counts[row.link_id] = Number(row.clicks);
+      }
+    }
+    return counts;
+  } catch (error) {
+    if (!isMissingFunctionError(error as { code?: string; message?: string })) throw error;
+  }
+
   const CONCURRENCY = 6;
   for (let i = 0; i < linkIds.length; i += CONCURRENCY) {
     const batch = linkIds.slice(i, i + CONCURRENCY);

@@ -112,6 +112,7 @@ describe("link resolution", () => {
         include_submission_in_url: false,
         utm_enabled: false,
         expires_at: null,
+        click_id_enabled: false,
         project_slug: "w",
       },
     });

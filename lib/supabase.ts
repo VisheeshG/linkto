@@ -51,6 +51,25 @@ export type Link = {
   include_submission_in_url?: boolean;
   utm_enabled?: boolean;
   expires_at?: string | null;
+  /** Missing before the conversion-tracking migration; treated as on. */
+  click_id_enabled?: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A brand website or app that reports conversions (see /dashboard/integration). */
+export type TrackingSite = {
+  id: string;
+  user_id: string;
+  name: string;
+  domain: string | null;
+  default_currency: string;
+  public_key: string;
+  secret_key_hint: string;
+  last_event_at: string | null;
+  test_visit_at: string | null;
+  test_signup_at: string | null;
+  test_purchase_at: string | null;
   created_at: string;
   updated_at: string;
 };

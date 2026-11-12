@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, LayoutDashboard, LogOut, UserRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutDashboard, LogOut, Target, UserRound } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { BrandLogo } from "@/components/BrandLogo";
 import { DropdownMenu } from "@/components/ui";
@@ -98,7 +98,14 @@ export function AppHeader({ crumbs = [] }: { crumbs?: Crumb[] }) {
           </>
         )}
 
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <Link
+            href="/dashboard/integration"
+            className="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-primary-700 md:flex"
+          >
+            <Target className="h-4 w-4" aria-hidden />
+            Conversion tracking
+          </Link>
           <DropdownMenu
             label="Account"
             items={[
@@ -106,6 +113,12 @@ export function AppHeader({ crumbs = [] }: { crumbs?: Crumb[] }) {
                 label: "Dashboard",
                 icon: LayoutDashboard,
                 onSelect: () => router.push("/dashboard"),
+              },
+              {
+                label: "Conversion tracking",
+                description: "Track signups and purchases",
+                icon: Target,
+                onSelect: () => router.push("/dashboard/integration"),
               },
               {
                 label: "Sign out",
