@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Banknote,
   Eye,
-  IndianRupee,
   MousePointerClick,
   ShoppingBag,
   Target,
@@ -55,6 +55,8 @@ const STEPS = [
   { key: "signups", label: "Signups", icon: UserPlus, hint: "Created an account" },
   { key: "purchases", label: "Purchases", icon: ShoppingBag, hint: "Paid for something" },
 ] as const;
+
+const count = (n: number, noun: string) => `${formatNumber(n)} ${noun}${n === 1 ? "" : "s"}`;
 
 /**
  * Clicks → visits → signups → purchases for a set of links, with a
@@ -196,7 +198,7 @@ export function ConversionsPanel({
         <StatCard
           label="Revenue"
           value={formatRevenue(totals.revenue)}
-          icon={IndianRupee}
+          icon={Banknote}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
           sublabel={
@@ -284,8 +286,8 @@ export function ConversionsPanel({
                 </p>
               </div>
               <p className="mt-0.5 text-xs tabular-nums text-slate-600">
-                {formatNumber(row.clicks)} clicks · {formatNumber(row.visits)} visits ·{" "}
-                {formatNumber(row.signups)} signups · {formatNumber(row.purchases)} purchases
+                {count(row.clicks, "click")} · {count(row.visits, "visit")} ·{" "}
+                {count(row.signups, "signup")} · {count(row.purchases, "purchase")}
               </p>
             </li>
           ))}

@@ -7,6 +7,7 @@ import {
   BarChart3,
   Building2,
   Check,
+  Eye,
   FileSpreadsheet,
   Link2,
   Lock,
@@ -14,14 +15,17 @@ import {
   Minus,
   Play,
   Share2,
+  ShoppingBag,
   Smartphone,
   Sparkles,
+  UserPlus,
   Users,
   X,
   Zap,
 } from "lucide-react";
 import { BrandedUrlDemo } from "./BrandedUrlDemo";
 import { HeroDashboard } from "./HeroDashboard";
+import { HowItWorksPlayer } from "./HowItWorksPlayer";
 import {
   COMPARISON_ROWS,
   LOGO_NAMES,
@@ -49,6 +53,9 @@ function Nav() {
           </span>
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-slate-400">
+          <a href="#how-it-works" className="hover:text-white transition-colors">
+            How it works
+          </a>
           <a href="#features" className="hover:text-white transition-colors">
             Features
           </a>
@@ -58,6 +65,9 @@ function Nav() {
           <a href="#use-cases" className="hover:text-white transition-colors">
             Use cases
           </a>
+          <Link href="/guide" className="hover:text-white transition-colors">
+            Integration guide
+          </Link>
         </nav>
         <div className="flex items-center gap-3">
           <Link
@@ -126,28 +136,29 @@ export function LinktoLanding() {
           <div className="max-w-3xl mx-auto text-center landing-fade-up">
             <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300 mb-6">
               <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-              Creator Analytics Platform
+              Click-to-purchase creator tracking
             </p>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.08]">
-              Stop guessing which creators drive results.
+              See which creators drive clicks, signups and sales.
             </h1>
             <p className="mt-6 text-lg sm:text-xl text-slate-400 leading-relaxed max-w-2xl mx-auto">
-              Track every creator, every campaign, and every click using clean
-              branded links that actually tell you what&apos;s working.
+              Give each creator one branded link. Linkto follows every click
+              through to the visit, the signup and the purchase, so you can
+              show a brand exactly what each creator delivered.
             </p>
             <p className="mt-4 text-sm text-slate-500 space-y-1">
+              <span className="block">No referral codes.</span>
+              <span className="block">No coupon tracking.</span>
               <span className="block">No spreadsheets.</span>
-              <span className="block">No messy UTMs.</span>
-              <span className="block">No manual reporting.</span>
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <PrimaryCta large />
               <a
-                href="#demo"
+                href="#how-it-works"
                 className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
               >
                 <Play className="h-4 w-4 fill-current" />
-                Watch Demo
+                Watch how it works
               </a>
             </div>
             <p className="mt-4 text-xs text-slate-500">
@@ -160,6 +171,41 @@ export function LinktoLanding() {
             <div className="mt-12">
               <HeroDashboard />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works (animated explainer) */}
+      <section id="how-it-works" className="scroll-mt-16 py-20 sm:py-28 bg-white border-b border-slate-200/80">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
+            <SectionLabel>How it works</SectionLabel>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
+              From a creator&apos;s post to a paid order, in 30 seconds
+            </h2>
+            <p className="mt-4 text-lg text-slate-600">
+              The brand pastes one snippet on its website. It does not need its
+              own referral, affiliate or coupon system.
+            </p>
+          </div>
+          <HowItWorksPlayer />
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm">
+            <Link
+              href="/guide"
+              className="inline-flex items-center gap-1.5 font-semibold text-cyan-700 hover:text-cyan-800"
+            >
+              Read the copy-paste integration guide
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <span className="hidden sm:inline text-slate-300" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/how-it-works"
+              className="inline-flex items-center gap-1.5 font-semibold text-slate-700 hover:text-slate-900"
+            >
+              Open the explainer on its own page
+            </Link>
           </div>
         </div>
       </section>
@@ -205,18 +251,18 @@ export function LinktoLanding() {
           <div className="mt-14 grid md:grid-cols-3 gap-6">
             {[
               {
-                title: "Bitly shows clicks",
-                body: "But not which creator generated them.",
+                title: "Link shorteners stop at the click",
+                body: "They can't tell you who signed up or bought.",
                 icon: Link2,
               },
               {
-                title: "UTMs become a mess",
-                body: "Hundreds of links. Broken spreadsheets. Manual reporting.",
+                title: "Referral systems take months",
+                body: "Most brands don't have codes, coupons or affiliate tooling to prove a sale.",
                 icon: FileSpreadsheet,
               },
               {
-                title: "Agencies waste hours",
-                body: "Building reports instead of optimizing campaigns.",
+                title: "Agencies can't prove results",
+                body: "\"We got you 40,000 clicks\" is not the number a brand pays for.",
                 icon: BarChart3,
               },
             ].map((card) => (
@@ -241,16 +287,18 @@ export function LinktoLanding() {
           <div className="text-center max-w-2xl mx-auto">
             <SectionLabel>The solution</SectionLabel>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
-              See exactly where every click came from.
+              See what every click turned into.
             </h2>
           </div>
 
           <div className="mt-16 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 flex-wrap">
             {[
-              { label: "Creator", icon: Users },
-              { label: "Linkto URL", icon: Link2 },
-              { label: "Click tracking", icon: Zap },
-              { label: "Analytics dashboard", icon: BarChart3 },
+              { label: "Creator link", icon: Link2 },
+              { label: "Click", icon: Zap },
+              { label: "Visit", icon: Eye },
+              { label: "Signup", icon: UserPlus },
+              { label: "Purchase", icon: ShoppingBag },
+              { label: "Report", icon: BarChart3 },
             ].map((step, i, arr) => (
               <div key={step.label} className="flex items-center gap-4 sm:gap-6">
                 <div className="flex flex-col items-center text-center">
@@ -271,20 +319,20 @@ export function LinktoLanding() {
           <div className="mt-16 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               {
-                title: "Creator attribution",
-                body: "Know exactly who generated every click.",
+                title: "Signups and sales per creator",
+                body: "Every visit, signup and order is credited to the creator who sent it.",
               },
               {
-                title: "Branded URLs",
-                body: "Look professional with custom campaign links.",
+                title: "No referral system needed",
+                body: "The brand pastes one snippet. No codes, coupons or affiliate software.",
               },
               {
-                title: "Campaign analytics",
-                body: "Creator, location, device, browser, and platform insights.",
+                title: "Works with any site or app",
+                body: "Shopify, WooCommerce, custom websites, Tag Manager, or a server call.",
               },
               {
-                title: "Shareable reports",
-                body: "Export PDF and Excel reports in seconds.",
+                title: "Client-ready reports",
+                body: "Share a live, password-protected report with clicks through to revenue.",
               },
             ].map((b) => (
               <div
@@ -307,7 +355,14 @@ export function LinktoLanding() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-24">
           {[
             {
+              tag: "Conversions",
+              title: "Track signups and purchases, not just clicks",
+              body: "Each click carries its own ID to the brand's site. When that visitor signs up or pays, the result lands next to the creator who sent them, with revenue.",
+              visual: "funnel",
+            },
+            {
               tag: "Attribution",
+              reverse: true,
               title: "Track creators automatically",
               body: "Every creator gets their own unique URL segment — attribution is built into the link, not bolted on with UTMs.",
               example: "linkto.in/nike/launch/abc123/john_doe",
@@ -318,20 +373,19 @@ export function LinktoLanding() {
               title: "Beautiful analytics",
               body: "Top creators, locations, devices, platforms, and campaigns — filtered by date range and exportable in one click.",
               visual: "analytics",
-              reverse: true,
             },
             {
               tag: "Agencies",
               title: "Built for agencies",
               body: "Manage multiple brands, organize campaigns, share password-protected analytics with clients, and move projects between brands in seconds.",
               visual: "agency",
+              reverse: true,
             },
             {
               tag: "Mobile",
               title: "Mobile app deep linking",
               body: "Open YouTube, Instagram, TikTok, Spotify, and more directly inside native apps — better UX, higher conversion.",
               visual: "mobile",
-              reverse: true,
             },
           ].map((f) => (
             <div
@@ -375,7 +429,7 @@ export function LinktoLanding() {
               Linkto vs traditional solutions
             </h2>
             <p className="mt-3 text-slate-600">
-              Why marketing teams outgrow Bitly and spreadsheets.
+              Why marketing teams outgrow link shorteners and spreadsheets.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-lg">
@@ -497,11 +551,11 @@ export function LinktoLanding() {
         />
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-            Stop wondering which creators perform best.
+            Show brands what their creators actually delivered.
           </h2>
           <p className="mt-6 text-lg text-slate-400 space-y-1">
             <span className="block">Track every click.</span>
-            <span className="block">Measure every creator.</span>
+            <span className="block">Count every signup and sale.</span>
             <span className="block">Scale what works.</span>
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -522,6 +576,36 @@ export function LinktoLanding() {
 }
 
 function FeatureVisual({ type }: { type: string }) {
+  if (type === "funnel") {
+    const steps = [
+      { label: "Clicks", value: "2,410", width: "100%" },
+      { label: "Visits", value: "2,196", width: "91%" },
+      { label: "Signups", value: "318", width: "34%" },
+      { label: "Purchases", value: "96", width: "14%" },
+    ];
+    return (
+      <div className="w-full text-left">
+        <p className="mb-4 flex items-center justify-between text-sm">
+          <span className="font-mono text-slate-700">/asha</span>
+          <span className="font-bold text-slate-900">₹1,43,904 revenue</span>
+        </p>
+        <ul className="space-y-3">
+          {steps.map((step) => (
+            <li key={step.label}>
+              <div className="mb-1 flex justify-between text-sm">
+                <span className="font-medium text-slate-700">{step.label}</span>
+                <span className="font-semibold tabular-nums text-slate-900">{step.value}</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100" aria-hidden>
+                <div className="h-full rounded-full bg-cyan-600" style={{ width: step.width }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-xs text-slate-600">Example numbers</p>
+      </div>
+    );
+  }
   if (type === "creators") {
     return (
       <ul className="w-full space-y-3 text-left">
@@ -619,6 +703,16 @@ function Footer() {
                 </a>
               </li>
               <li>
+                <a href="#how-it-works" className="hover:text-white transition-colors">
+                  How it works
+                </a>
+              </li>
+              <li>
+                <Link href="/guide" className="hover:text-white transition-colors">
+                  Integration guide
+                </Link>
+              </li>
+              <li>
                 <Link href="/login" className="hover:text-white transition-colors">
                   Sign in
                 </Link>
@@ -664,8 +758,8 @@ function Footer() {
           </div>
         </div>
         <p className="mt-12 pt-8 border-t border-white/5 text-xs text-center text-slate-400">
-          © {new Date().getFullYear()} Linkto. Creator analytics, not just link
-          shortening.
+          © {new Date().getFullYear()} Linkto. Creator results, from click to
+          purchase.
         </p>
       </div>
     </footer>

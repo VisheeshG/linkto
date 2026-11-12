@@ -59,6 +59,20 @@ A comprehensive link tracking platform built with Next.js and Supabase that enab
 6. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
+## Conversion tracking (visits, signups, purchases)
+
+Linkto follows each click through to what the visitor did on the brand's site, so
+reports show clicks → visits → signups → purchases and revenue per creator. The brand
+pastes one snippet (or calls one API from its server); it needs no referral codes,
+coupons or affiliate software.
+
+- **Set up:** apply `supabase/migrations/20261112000000_conversion_tracking.sql`, then
+  Dashboard → **Conversion tracking** → **Add website**.
+- **Guide for brands (copy-paste):** [docs/brand-integration-guide.md](docs/brand-integration-guide.md),
+  also served at `/guide`.
+- **How it works, testing, API reference:** [docs/conversion-tracking.md](docs/conversion-tracking.md).
+- **Explainer:** `/how-it-works` (also `public/videos/linkto-how-it-works.mp4`).
+
 ## Bot & datacenter filtering
 
 Every click is classified when it is recorded (`link_clicks.traffic_type`):
