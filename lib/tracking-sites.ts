@@ -11,6 +11,8 @@ export type SiteAuth = {
   id: string;
   userId: string;
   defaultCurrency: string;
+  /** Ignore purchases sent with the public key (browser); see docs. */
+  serverPurchasesOnly: boolean;
 };
 
 const FOUND_TTL_MS = 60_000;
@@ -38,14 +40,24 @@ async function lookup(
 
   const { data, error } = await supabase
     .from("tracking_sites")
-    .select("id, user_id, default_currency")
+    // `*` so a database without the newer optional columns still works.
+    .select("*")
     .eq(column, value)
     .limit(1);
   if (error) throw error;
 
-  const row = (data as { id: string; user_id: string; default_currency: string }[] | null)?.[0];
+  const row = (
+    data as
+      | { id: string; user_id: string; default_currency: string; server_purchases_only?: boolean }[]
+      | null
+  )?.[0];
   const site = row
-    ? { id: row.id, userId: row.user_id, defaultCurrency: row.default_currency }
+    ? {
+        id: row.id,
+        userId: row.user_id,
+        defaultCurrency: row.default_currency,
+        serverPurchasesOnly: row.server_purchases_only ?? false,
+      }
     : null;
   siteCache.set(cacheKey, site, site ? FOUND_TTL_MS : MISSING_TTL_MS);
   return site;

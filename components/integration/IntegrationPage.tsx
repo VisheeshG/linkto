@@ -32,6 +32,7 @@ import {
   PageHeader,
   Select,
   Skeleton,
+  Switch,
   buttonClasses,
 } from "@/components/ui";
 import { supabase, type TrackingSite } from "@/lib/supabase";
@@ -44,8 +45,8 @@ import {
 } from "@/lib/integration-snippets";
 import { PlatformSteps } from "./PlatformSteps";
 
-const SITE_COLUMNS =
-  "id, user_id, name, domain, default_currency, public_key, secret_key_hint, last_event_at, test_visit_at, test_signup_at, test_purchase_at, created_at, updated_at";
+// `*` so the page still loads on a database without the newer optional columns.
+const SITE_COLUMNS = "*";
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "AUD", "CAD"];
 
@@ -285,6 +286,25 @@ function SiteCard({
     await onChanged();
   };
 
+  const setServerPurchasesOnly = async (value: boolean) => {
+    const { error } = await supabase
+      .from("tracking_sites")
+      .update({ server_purchases_only: value })
+      .eq("id", site.id);
+    if (error) {
+      toast.error(
+        isMissingSchema(error) || error.code === "PGRST204" || error.code === "42501"
+          ? "Apply the migration 20261118000000_server_purchases_only.sql first."
+          : `Couldn't save: ${describeError(error)}`
+      );
+      return;
+    }
+    setSite((prev) => ({ ...prev, server_purchases_only: value }));
+    toast.success(
+      value ? "Only server purchases are counted now" : "Website purchases are counted again"
+    );
+  };
+
   const rotateSecret = async () => {
     const { data, error } = await supabase.rpc("rotate_tracking_site_secret", {
       p_site_id: site.id,
@@ -435,6 +455,19 @@ function SiteCard({
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section aria-labelledby={`${panelId}-verified`}>
+            <h3 id={`${panelId}-verified`} className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
+              Verified purchases
+            </h3>
+            <Switch
+              checked={site.server_purchases_only ?? false}
+              onChange={setServerPurchasesOnly}
+              label="Only count purchases sent from the server"
+              description="Turn on when payouts or invoices depend on purchase numbers. Purchases from the website snippet are then ignored, because anything sent from a browser can be faked. The site must report purchases with the “Server (verified)” option. Takes up to a minute to apply."
+              className="items-start"
+            />
           </section>
 
           <section aria-labelledby={`${panelId}-keys`}>
@@ -605,7 +638,7 @@ function SecretDialog({
             <CopyButton text={revealed.secret} label="Copy" variant="primary" size="md" />
           </div>
           <p className="text-sm text-slate-600">
-            Only needed for the “Server or mobile app” option. If you only paste the website
+            Only needed for the “Server (verified)” option. If you only paste the website
             snippet, you can ignore this key. Keep it private: never put it in a web page or app.
           </p>
         </div>

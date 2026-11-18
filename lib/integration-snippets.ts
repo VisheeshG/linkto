@@ -72,6 +72,17 @@ export function serverSnippet(
   ].join("\n");
 }
 
+export function saveClickIdSnippet(): string {
+  return [
+    "// Node.js / Express example. Any language works the same way.",
+    "const clickId = req.cookies.lt_id;          // set by the Linkto snippet",
+    "await db.orders.update(orderId, { linktoClickId: clickId ?? null });",
+    "",
+    "// Later, in your payment webhook:",
+    "// if (order.linktoClickId) -> send the purchase below with that click_id",
+  ].join("\n");
+}
+
 function shopifyPixel({ origin, siteKey }: SnippetContext): string {
   return [
     'analytics.subscribe("checkout_completed", async (event) => {',
@@ -154,7 +165,7 @@ export function integrationPlatforms(ctx: SnippetContext): IntegrationPlatform[]
           title: "Paste this where a payment succeeds",
           body: "Add it to your order confirmation page. Replace 499 and ORDER-1001 with the real order amount and order number.",
           code: purchase,
-          note: "The order number stops the same sale being counted twice if the page is refreshed.",
+          note: "The order number stops the same sale being counted twice if the page is refreshed. If payouts depend on purchase numbers, send purchases from your server instead (see “Server (verified)”): a browser call can be faked by the visitor.",
         },
       ],
     },
@@ -214,23 +225,34 @@ export function integrationPlatforms(ctx: SnippetContext): IntegrationPlatform[]
     },
     {
       id: "server",
-      label: "Server or mobile app",
-      summary: "For mobile apps, payment webhooks, and anyone who wants events that ad blockers cannot stop.",
+      label: "Server (verified)",
+      summary:
+        "The reliable way to report purchases: your server tells Linkto, using a secret key nobody else has. Use it when payouts or invoices depend on the numbers, for mobile apps, and for payment webhooks. Ad blockers cannot stop it and visitors cannot fake it.",
       steps: [
         {
-          title: "Get the click ID",
-          body: "On a website, add the “Any website” step 1 snippet; your server can then read the lt_id cookie from any request. In a mobile app, read lt_id from the link that opened the app and send it to your server.",
+          title: "Keep the website snippet for visits",
+          body: "Add the “Any website” step 1 snippet as usual. It counts visits and saves the click ID in a cookie called lt_id, which your server can read on any request. In a mobile app, read lt_id from the link that opened the app and send it to your server.",
+          code: baseSnippet(ctx),
         },
         {
-          title: "Send a signup",
-          body: "Call this from your server when an account is created. Include user_id so later purchases can be matched to this person even without a click ID.",
+          title: "Save the click ID when the customer signs up or checks out",
+          body: "Read the lt_id cookie on your server and store it with the user or the order, so it is still there when the payment is confirmed later.",
+          code: saveClickIdSnippet(),
+        },
+        {
+          title: "Send the purchase when the payment is confirmed",
+          body: "Call this from your payment provider's webhook or success handler. Send the real amount, currency and order number.",
+          code: serverSnippet(ctx, "purchase"),
+          note: "Keep the secret key on your server, in an environment variable. Never put it in a web page or app.",
+        },
+        {
+          title: "Send signups the same way (optional)",
+          body: "Include user_id. Later purchases can then be sent with just that user_id, without a click ID.",
           code: serverSnippet(ctx, "signup"),
         },
         {
-          title: "Send a purchase",
-          body: "Call this when a payment succeeds (for example from your payment provider's webhook). Send click_id, or just the same user_id you sent at signup.",
-          code: serverSnippet(ctx, "purchase"),
-          note: "Keep the secret key on your server. Never put it in a web page or app.",
+          title: "Turn on “Only count purchases sent from the server”",
+          body: "In Linkto → Conversion tracking → this website → Verified purchases. From then on Linkto ignores any purchase that does not carry your secret key, so the numbers cannot be inflated from a browser.",
         },
       ],
     },

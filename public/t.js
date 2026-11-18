@@ -155,7 +155,7 @@
                   : event + " failed: " + (result.error || result.message),
                 result.ok
               );
-            } else if (!result.ok && response.status !== 404) {
+            } else if (!result.ok && response.status !== 404 && result.status !== "ignored") {
               warn(event + " was not recorded: " + (result.error || result.message));
             }
           });

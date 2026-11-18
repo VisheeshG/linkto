@@ -68,6 +68,9 @@ coupons or affiliate software.
 
 - **Set up:** apply `supabase/migrations/20261112000000_conversion_tracking.sql`, then
   Dashboard → **Conversion tracking** → **Add website**.
+- **Verified purchases:** apply `supabase/migrations/20261118000000_server_purchases_only.sql`
+  to get the per-website switch that only counts purchases sent from the brand's server
+  (browser-sent purchases can be faked).
 - **Guide for brands (copy-paste):** [docs/brand-integration-guide.md](docs/brand-integration-guide.md),
   also served at `/guide`.
 - **How it works, testing, API reference:** [docs/conversion-tracking.md](docs/conversion-tracking.md).

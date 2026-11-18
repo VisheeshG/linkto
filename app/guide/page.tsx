@@ -35,7 +35,11 @@ const FAQ = [
   },
   {
     q: "What if a visitor uses an ad blocker?",
-    a: "Some ad blockers stop tracking scripts. If you need every sale counted, use the “Server or mobile app” option: your server reports the sale directly, which a browser cannot block.",
+    a: "Some ad blockers stop tracking scripts. If you need every sale counted, use the “Server (verified)” option: your server reports the sale directly, which a browser cannot block.",
+  },
+  {
+    q: "Can someone fake a signup or a purchase?",
+    a: "Anything sent from a browser can be faked by the person using it, as with every tracking script. Someone who clicked a creator's link could send made-up purchases for that creator. If money depends on the numbers, report purchases from your server (the “Server (verified)” tab) and switch on “Only count purchases sent from the server” in Linkto. Purchases are then accepted only with your secret key.",
   },
   {
     q: "Can the same order be counted twice?",
@@ -94,6 +98,42 @@ export default function GuidePage() {
             Install
           </h2>
           <GuideSteps origin={siteConfig.url} />
+        </section>
+
+        <section aria-labelledby="reliable" className="mt-12">
+          <h2 id="reliable" className="text-xl font-bold tracking-tight">
+            Paying creators on these numbers? Verify purchases
+          </h2>
+          <p className="mt-3 text-sm text-slate-700">
+            The website snippet is the quickest setup and is fine for seeing what works. But a
+            purchase reported from a web page can be faked by the visitor, and blocked by ad
+            blockers. When payouts, commissions or invoices depend on the purchase numbers, make
+            them verified:
+          </p>
+          <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm text-slate-700 marker:font-semibold marker:text-slate-900">
+            <li>
+              Keep the snippet from step 1 on your site. It still counts visits and saves the
+              click ID.
+            </li>
+            <li>
+              Report purchases from your <strong>server</strong> when the payment is confirmed,
+              using your secret key. The steps are in the <strong>“Server (verified)”</strong>{" "}
+              tab above.
+            </li>
+            <li>
+              In Linkto → Conversion tracking → your website, switch on{" "}
+              <strong>“Only count purchases sent from the server”</strong>.
+            </li>
+          </ol>
+          <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            After that, Linkto counts a purchase only if it carries your secret key, which never
+            leaves your server. Purchase numbers cannot be inflated from a browser, and ad
+            blockers cannot hide real sales.
+          </p>
+          <p className="mt-3 text-sm text-slate-600">
+            Shopify and WooCommerce setups on this page report purchases from the browser, so
+            leave the switch off for those unless your server also reports orders.
+          </p>
         </section>
 
         <section aria-labelledby="test" className="mt-12">
