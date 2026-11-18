@@ -28,9 +28,8 @@ import { HeroDashboard } from "./HeroDashboard";
 import { HowItWorksPlayer } from "./HowItWorksPlayer";
 import {
   COMPARISON_ROWS,
-  LOGO_NAMES,
-  STATS,
-  TESTIMONIALS,
+  FACTS,
+  LANDING_FAQ,
 } from "./landing-data";
 
 function Nav() {
@@ -210,32 +209,22 @@ export function LinktoLanding() {
         </div>
       </section>
 
-      {/* Social proof */}
+      {/* Product facts */}
       <section className="py-16 sm:py-20 border-b border-slate-200/80 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-            Trusted by modern creator marketing teams
+          <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">
+            Simple for you, simple for the brand
           </h2>
-          <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {STATS.map((s) => (
-              <div key={s.label}>
-                <p className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
-                  {s.value}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">{s.label}</p>
+          <dl className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-8">
+            {FACTS.map((fact) => (
+              <div key={fact.label} className="flex flex-col-reverse">
+                <dt className="mt-1 text-sm text-slate-600">{fact.label}</dt>
+                <dd className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+                  {fact.value}
+                </dd>
               </div>
             ))}
-          </div>
-          <div className="mt-14 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {LOGO_NAMES.map((name) => (
-              <span
-                key={name}
-                className="text-sm font-semibold text-slate-500"
-              >
-                {name}
-              </span>
-            ))}
-          </div>
+          </dl>
         </div>
       </section>
 
@@ -365,7 +354,7 @@ export function LinktoLanding() {
               reverse: true,
               title: "Track creators automatically",
               body: "Every creator gets their own unique URL segment — attribution is built into the link, not bolted on with UTMs.",
-              example: "linkto.in/nike/launch/abc123/john_doe",
+              example: "linkto.in/acme/launch/abc123/john_doe",
               visual: "creators",
             },
             {
@@ -513,33 +502,23 @@ export function LinktoLanding() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-20 sm:py-28 bg-[#fafafa]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-14">
-            <SectionLabel>Testimonials</SectionLabel>
+      {/* FAQ */}
+      <section id="faq" className="scroll-mt-16 py-20 sm:py-28 bg-[#fafafa]">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <SectionLabel>Questions</SectionLabel>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
-              Teams ship faster with clearer data
+              What brands and agencies ask first
             </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((t) => (
-              <blockquote
-                key={t.name}
-                className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm flex flex-col"
-              >
-                <p className="text-slate-700 leading-relaxed flex-1">
-                  &ldquo;{t.quote}&rdquo;
-                </p>
-                <footer className="mt-6 pt-6 border-t border-slate-100">
-                  <p className="font-semibold text-slate-900">{t.name}</p>
-                  <p className="text-sm text-slate-500">
-                    {t.role}, {t.company}
-                  </p>
-                </footer>
-              </blockquote>
+          <dl className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white px-6 sm:px-8">
+            {LANDING_FAQ.map((item) => (
+              <div key={item.q} className="py-6">
+                <dt className="text-lg font-bold text-slate-900">{item.q}</dt>
+                <dd className="mt-2 text-slate-600 leading-relaxed">{item.a}</dd>
+              </div>
             ))}
-          </div>
+          </dl>
         </div>
       </section>
 
@@ -699,7 +678,7 @@ function Footer() {
               </li>
               <li>
                 <a href="#compare" className="hover:text-white transition-colors">
-                  Pricing
+                  Compare
                 </a>
               </li>
               <li>
@@ -725,8 +704,13 @@ function Footer() {
             </p>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  About
+                <Link href="/how-it-works" className="hover:text-white transition-colors">
+                  How it works
+                </Link>
+              </li>
+              <li>
+                <a href="#faq" className="hover:text-white transition-colors">
+                  FAQ
                 </a>
               </li>
               <li>
@@ -745,14 +729,14 @@ function Footer() {
             </p>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <Link href="/privacy" className="hover:text-white transition-colors">
                   Privacy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <Link href="/terms" className="hover:text-white transition-colors">
                   Terms
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

@@ -1,23 +1,43 @@
-export const STATS = [
-  { value: "18,400+", label: "Campaigns tracked" },
-  { value: "52M+", label: "Clicks processed" },
-  { value: "940K+", label: "Creators analyzed" },
-  { value: "2,800+", label: "Brands onboarded" },
+/** Facts about the product itself (see docs/conversion-tracking.md). */
+export const FACTS = [
+  { value: "1", label: "Snippet for the brand to paste" },
+  { value: "10 min", label: "Typical setup, copy and paste" },
+  { value: "< 3 KB", label: "Script size on the brand's site" },
+  { value: "30 days", label: "Click-to-purchase attribution window" },
 ] as const;
 
-export const LOGO_NAMES = [
-  "Velocity Media",
-  "Northstar Agency",
-  "Creator Labs",
-  "Pulse Brands",
-  "Summit Growth",
-  "Atlas Partners",
+export const LANDING_FAQ = [
+  {
+    q: "Does the brand need its own referral or affiliate system?",
+    a: "No. Linkto tags every click and the brand pastes one snippet on its website. There are no referral codes, coupons or creator accounts to manage on the brand's side.",
+  },
+  {
+    q: "What exactly can I track?",
+    a: "Clicks, visits to the brand's site, signups, purchases and revenue, each credited to the creator whose link was clicked. You can also record custom events such as add-to-cart.",
+  },
+  {
+    q: "Which websites and apps does it work with?",
+    a: "Any website where code can be added, Shopify, WordPress with WooCommerce, Google Tag Manager, and mobile apps or backends through a server API.",
+  },
+  {
+    q: "Can the numbers be faked?",
+    a: "Events sent from a browser can be faked by a visitor, as with any tracking script. For payouts, the brand reports purchases from its own server with a secret key, and you switch on verified purchases so only those are counted.",
+  },
+  {
+    q: "What does the script collect?",
+    a: "A click ID, the event name and, for purchases, the amount, currency and order number. No names, emails, phone numbers or card details.",
+  },
+  {
+    q: "Can I share results with a client?",
+    a: "Yes. Every campaign has a live report link, optionally password-protected, showing clicks through to revenue per creator. Reports also export to PDF and Excel.",
+  },
 ] as const;
 
 export const COMPARISON_ROWS = [
   "Creator attribution",
   "Signup and purchase tracking",
   "Revenue per creator",
+  "Verified (server-side) purchases",
   "Branded campaign URLs",
   "Campaign organization",
   "Client-ready reporting",
@@ -25,32 +45,8 @@ export const COMPARISON_ROWS = [
   "Multi-brand management",
 ] as const;
 
-export const TESTIMONIALS = [
-  {
-    quote:
-      "We cut weekly reporting from six hours to forty minutes. Every stakeholder finally sees which creator actually moved the needle — not just total clicks.",
-    name: "Sarah Chen",
-    role: "Head of Influencer Marketing",
-    company: "DTC Beauty Brand",
-  },
-  {
-    quote:
-      "Linkto replaced our UTM spreadsheet nightmare. Branded URLs look client-ready, and attribution is built into the path — no more guessing which link belongs to whom.",
-    name: "Marcus Webb",
-    role: "Founder",
-    company: "Creator-First Agency",
-  },
-  {
-    quote:
-      "Podcast clip campaigns used to be a black box. Now we know which host segments drive traffic and can double down on winners the same week.",
-    name: "Priya Nair",
-    role: "Growth Lead",
-    company: "Media Network",
-  },
-] as const;
-
 export const URL_SEGMENTS = [
-  { key: "brand", label: "Brand", value: "nike", hint: "Your client or house brand" },
+  { key: "brand", label: "Brand", value: "acme", hint: "Your client or house brand" },
   {
     key: "campaign",
     label: "Campaign",

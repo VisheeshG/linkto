@@ -329,11 +329,7 @@ function ProjectDetailsContent({
       // If short code already exists, generate a new unique one
       let finalShortCode = shortCode;
       if (existingShortCode) {
-        console.log(
-          `Short code ${shortCode} already exists, generating new one...`
-        );
         finalShortCode = await generateUniqueShortCode(supabase);
-        console.log(`Generated new short code: ${finalShortCode}`);
       }
 
       // All links use "sub1" as the submission number

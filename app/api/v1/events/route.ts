@@ -8,6 +8,8 @@ import {
   type NormalizedEvent,
   type RecordStatus,
 } from "@/lib/conversion-events";
+import { getClientIpFromRequest } from "@/lib/analytics";
+import { RateLimiter } from "@/lib/rate-limit";
 import {
   findSiteByPublicKey,
   findSiteBySecretKey,
@@ -26,6 +28,24 @@ import {
  */
 
 const MAX_BODY_BYTES = 4096;
+
+// One visitor sends a handful of events; a server can legitimately send many.
+const browserLimiter = new RateLimiter(300, 60_000);
+const serverLimiter = new RateLimiter(3000, 60_000);
+
+function tooManyRequests(retryAfterSeconds: number): NextResponse {
+  return NextResponse.json(
+    { ok: false, error: "Too many requests. Slow down and retry shortly." },
+    {
+      status: 429,
+      headers: {
+        ...CORS_HEADERS,
+        "Cache-Control": "no-store",
+        "Retry-After": String(retryAfterSeconds),
+      },
+    }
+  );
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -124,7 +144,15 @@ export async function POST(request: NextRequest) {
     if (bearer) {
       site = await findSiteBySecretKey(supabase, bearer);
       if (!site) return json(401, { ok: false, error: "Invalid secret key" });
+      const limit = serverLimiter.hit(site.id);
+      if (!limit.allowed) return tooManyRequests(limit.retryAfterSeconds);
     } else {
+      // Per visitor IP; skipped when the platform does not tell us the IP.
+      const ip = getClientIpFromRequest(request);
+      if (ip) {
+        const limit = browserLimiter.hit(ip);
+        if (!limit.allowed) return tooManyRequests(limit.retryAfterSeconds);
+      }
       const publicKey = (body as { site?: unknown } | null)?.site;
       if (typeof publicKey !== "string" || !publicKey) {
         return json(401, {

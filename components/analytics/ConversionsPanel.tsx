@@ -193,7 +193,16 @@ export function ConversionsPanel({
           icon={ShoppingBag}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          sublabel={`${formatRate(totals.purchases, totals.clicks)} of clicks`}
+          sublabel={
+            totals.verifiedPurchases
+              ? `${formatNumber(totals.verifiedPurchases)} of ${formatNumber(totals.purchases)} verified by server`
+              : `${formatRate(totals.purchases, totals.clicks)} of clicks`
+          }
+          title={
+            totals.verifiedPurchases
+              ? "Verified purchases were reported by the website's server with its secret key, so they cannot be faked from a browser."
+              : undefined
+          }
         />
         <StatCard
           label="Revenue"

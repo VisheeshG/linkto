@@ -16,7 +16,7 @@ export function slugifyName(name: string, maxLength = 48): string {
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** First URL segments used by the app itself; a slug here would be unreachable. */
-export const RESERVED_SLUGS = new Set(["api", "dashboard", "login", "signup", "guide", "how-it-works"]);
+export const RESERVED_SLUGS = new Set(["api", "dashboard", "login", "signup", "guide", "how-it-works", "privacy", "terms"]);
 
 export function isValidSlug(slug: string): boolean {
   return (
