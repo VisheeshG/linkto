@@ -28,7 +28,8 @@ The brand needs no referral codes, coupons or affiliate software.
 
 ## Turning it on
 
-1. **Apply the migration** `supabase/migrations/20261112000000_conversion_tracking.sql`
+1. **Apply the migrations** `supabase/migrations/20261112000000_conversion_tracking.sql`
+   and `20261118000000_server_purchases_only.sql`
    (for example `supabase db push`). It is safe to run more than once.
 2. **Deploy the app.** No new environment variables. The code tolerates being deployed
    before the migration: redirects keep working, click IDs are simply not handed out, and
@@ -119,6 +120,7 @@ Responses:
 | 200 | `recorded` | Stored and credited |
 | 200 | `duplicate` | Already stored; safe to ignore |
 | 200 | `test` | Test click; checklist updated, nothing stored |
+| 200 | `ignored` | Browser purchase on a website that only counts server purchases (`ok` is false) |
 | 202 | `pending` | Browser visit arrived before the click was saved; retried automatically |
 | 400 | — | Invalid body (the `error` says what) |
 | 401 | — | Unknown site key or secret key |
@@ -138,6 +140,28 @@ Responses:
   - custom event: once per click + name, or once per `event_id`
 - **Bots:** events are accepted for any click; the funnel's click count follows the
   "Hide bots" switch.
+
+## Verified purchases
+
+A purchase sent by the browser snippet carries only the public site key, so the visitor
+can forge it (made-up order numbers and amounts, credited to whichever creator's link
+they clicked). A purchase sent by the site's server carries the secret key and cannot be
+forged.
+
+Each website has a switch, **Conversion tracking → website → Verified purchases → "Only
+count purchases sent from the server"** (`tracking_sites.server_purchases_only`, added by
+`20261118000000_server_purchases_only.sql`):
+
+- **Off (default):** browser and server purchases both count. Fine for seeing what works.
+- **On:** browser purchases get `200 {"ok":false,"status":"ignored"}` and are not stored.
+  Only purchases with `Authorization: Bearer lt_sec_…` count. Visits, signups and custom
+  events are unaffected. The setting takes up to a minute to apply (site keys are cached).
+
+Turn it on for any website where payouts, commissions or invoices depend on purchase
+numbers, after the site reports purchases from its payment webhook. The Shopify and
+WooCommerce recipes report purchases from the browser, so leave it off for those unless
+the store's server also reports orders. Every stored event records its `source`
+(`browser` or `server`).
 
 ## Data model
 
@@ -177,8 +201,8 @@ only, never individual events, customer IDs or order IDs.
   script-set cookies at 7 days, so browser-only tracking undercounts a little. The
   server API avoids both.
 - **Browser events are not proof.** Like any tracking pixel, a visitor can forge an
-  event for their own click. Use the server API (secret key) where payouts depend on
-  the numbers.
+  event for their own click. Where payouts depend on the numbers, use
+  [verified purchases](#verified-purchases).
 - **No rate limiting** on the events endpoint yet beyond the de-duplication rules.
 - **Click breakdowns** (cities, devices, the map) still load raw click rows in the
   browser; only conversion reports and per-link counts are grouped in the database.

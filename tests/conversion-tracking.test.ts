@@ -326,6 +326,16 @@ describe("integration snippets", () => {
     }
   });
 
+  it("tells website users how to verify purchases and server users to turn the switch on", () => {
+    const platforms = integrationPlatforms(ctx);
+    const website = platforms.find((p) => p.id === "website")!;
+    const server = platforms.find((p) => p.id === "server")!;
+    expect(website.steps.at(-1)!.note).toContain("can be faked");
+    expect(server.label).toBe("Server (verified)");
+    expect(server.steps.at(-1)!.title).toContain("Only count purchases sent from the server");
+    expect(server.steps.map((s) => s.code ?? "").join("\n")).toContain("req.cookies.lt_id");
+  });
+
   it("builds a test-mode URL from whatever the owner typed", () => {
     expect(testModeUrl("brand.com")).toBe("https://brand.com/?lt_id=lt_test_setup");
     expect(testModeUrl("http://localhost:4000/shop?a=1")).toBe("http://localhost:4000/shop?a=1&lt_id=lt_test_setup");

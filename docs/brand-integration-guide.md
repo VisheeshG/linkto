@@ -22,7 +22,7 @@ In the code below, replace `YOUR_SITE_KEY` with it.
 | Shopify | [Shopify](#shopify) |
 | WordPress with WooCommerce | [WooCommerce](#wordpress--woocommerce) |
 | Google Tag Manager | [Google Tag Manager](#google-tag-manager) |
-| A mobile app, or you want your server to report sales | [Server or mobile app](#server-or-mobile-app) |
+| A mobile app, or payouts depend on the purchase numbers | [Server (verified)](#server-verified) |
 
 ---
 
@@ -169,20 +169,45 @@ Order totals, currency and order numbers are filled in automatically.
 
 ---
 
-## Server or mobile app
+## Server (verified)
 
-Use this for mobile apps, payment webhooks, or when you want events that ad blockers
-cannot stop. It needs your **secret key** (starts with `lt_sec_`), shown once when the
-website was added in Linkto. Keep it on your server; never put it in a web page or app.
+The reliable way to report purchases: your server tells Linkto, using a secret key nobody
+else has. Use it when payouts, commissions or invoices depend on the numbers, for mobile
+apps, and for payment webhooks. Ad blockers cannot stop it and visitors cannot fake it.
 
-**1. Get the click ID.**
+It needs your **secret key** (starts with `lt_sec_`), shown once when the website was
+added in Linkto. Keep it on your server, in an environment variable. Never put it in a
+web page or app.
 
-- Website: add the Step 1 snippet from [Any website](#any-website). Your server can then
-  read the `lt_id` cookie from any request.
-- Mobile app: read `lt_id` from the link that opened the app and send it to your server.
+**1. Keep the website snippet for visits.** Add the Step 1 snippet from
+[Any website](#any-website). It counts visits and saves the click ID in a cookie called
+`lt_id`, which your server can read on any request. In a mobile app, read `lt_id` from
+the link that opened the app and send it to your server.
 
-**2. Send a signup** when an account is created. Include `user_id` so later purchases
-can be matched to this person even without a click ID.
+**2. Save the click ID when the customer signs up or checks out**, so it is still there
+when the payment is confirmed later.
+
+```js
+// Node.js / Express example. Any language works the same way.
+const clickId = req.cookies.lt_id;          // set by the Linkto snippet
+await db.orders.update(orderId, { linktoClickId: clickId ?? null });
+```
+
+**3. Send the purchase when the payment is confirmed** (payment webhook or success
+handler), with the real amount, currency and order number.
+
+```bash
+curl -X POST https://linkto.in/api/v1/events \
+  -H "Authorization: Bearer YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"event":"purchase","click_id":"CLICK_ID","amount":499,"currency":"INR","order_id":"ORDER-1001"}'
+```
+
+A reply of `{"ok":true,"status":"recorded"}` means it was counted.
+`"status":"duplicate"` means it was already counted (safe to retry).
+
+**4. Send signups the same way (optional).** Include `user_id`. Later purchases can then
+be sent with just that `user_id`, without a click ID.
 
 ```bash
 curl -X POST https://linkto.in/api/v1/events \
@@ -191,18 +216,12 @@ curl -X POST https://linkto.in/api/v1/events \
   -d '{"event":"signup","click_id":"CLICK_ID","user_id":"USER-42"}'
 ```
 
-**3. Send a purchase** when a payment succeeds. Send `click_id`, or just the same
-`user_id` you sent at signup.
+**5. Turn on "Only count purchases sent from the server"** in Linkto → Conversion
+tracking → your website → Verified purchases. From then on Linkto ignores any purchase
+that does not carry your secret key, so the numbers cannot be inflated from a browser.
 
-```bash
-curl -X POST https://linkto.in/api/v1/events \
-  -H "Authorization: Bearer YOUR_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"event":"purchase","user_id":"USER-42","amount":499,"currency":"INR","order_id":"ORDER-1001"}'
-```
-
-A reply of `{"ok":true,"status":"recorded"}` means it was counted.
-`"status":"duplicate"` means it was already counted (safe to retry).
+> The Shopify and WooCommerce setups above report purchases from the browser. Leave the
+> switch off for those unless your server also reports orders.
 
 ---
 
@@ -240,7 +259,13 @@ it under analytics or marketing.
 clicks two creators' links, the most recent click gets the credit.
 
 **What if a visitor uses an ad blocker?** Some ad blockers stop tracking scripts. If you
-need every sale counted, use [Server or mobile app](#server-or-mobile-app).
+need every sale counted, use [Server (verified)](#server-verified).
+
+**Can someone fake a signup or a purchase?** Anything sent from a browser can be faked
+by the person using it, as with every tracking script. Someone who clicked a creator's
+link could send made-up purchases for that creator. If money depends on the numbers, use
+[Server (verified)](#server-verified) and switch on "Only count purchases sent from the
+server". Purchases are then accepted only with your secret key.
 
 **Can the same order be counted twice?** Not if you pass your order number. Each order
 number is counted once, even if both the page and your server report it.

@@ -146,6 +146,17 @@ export async function POST(request: NextRequest) {
       return json(400, { ok: false, error: "click_id is required" });
     }
 
+    // Sites that pay out on purchases accept them from their server only:
+    // a browser event can be forged by the visitor.
+    if (source === "browser" && event.eventType === "purchase" && site.serverPurchasesOnly) {
+      return json(200, {
+        ok: false,
+        status: "ignored",
+        error:
+          "This site only counts purchases sent from its server (secret key). Browser purchases are ignored.",
+      });
+    }
+
     if (event.test) {
       await recordTestEvent(supabase, site, event);
       return json(200, { ok: true, test: true, status: "test", event: event.eventType });

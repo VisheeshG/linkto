@@ -66,6 +66,8 @@ export type TrackingSite = {
   default_currency: string;
   public_key: string;
   secret_key_hint: string;
+  /** Missing before the verified-purchases migration; treated as off. */
+  server_purchases_only?: boolean;
   last_event_at: string | null;
   test_visit_at: string | null;
   test_signup_at: string | null;
