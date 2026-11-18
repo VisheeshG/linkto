@@ -12,6 +12,7 @@ import {
 import { describeRecordStatus, parseEventPayload } from "@/lib/conversion-events";
 import {
   buildFunnel,
+  conversionExportRows,
   dateKeysToRange,
   formatMoney,
   formatRate,
@@ -19,6 +20,7 @@ import {
   type ConversionSummaryRow,
 } from "@/lib/conversions";
 import { TtlCache } from "@/lib/ttl-cache";
+import { RateLimiter } from "@/lib/rate-limit";
 import { createCachedTrackingPathResolver } from "@/lib/link-resolution";
 import {
   baseSnippet,
@@ -157,7 +159,7 @@ describe("buildFunnel", () => {
     summary: [
       row({ events: 80 }),
       row({ event_type: "signup", events: 20 }),
-      row({ event_type: "purchase", currency: "INR", events: 4, revenue: 2000 }),
+      row({ event_type: "purchase", currency: "INR", events: 4, revenue: 2000, verified_events: 3 }),
       row({ link_id: "l2", event_type: "purchase", currency: "INR", events: 1, revenue: 500 }),
       row({ creator_username: "asha", events: 40 }),
       row({ creator_username: "asha", event_type: "purchase", currency: "USD", events: 2, revenue: 90.5 }),
@@ -171,6 +173,7 @@ describe("buildFunnel", () => {
       visits: 120,
       signups: 20,
       purchases: 7,
+      verifiedPurchases: 3,
       revenue: { INR: 2500, USD: 90.5 },
     });
     expect(funnel.hasEvents).toBe(true);
@@ -185,6 +188,23 @@ describe("buildFunnel", () => {
   it("ranks by revenue and lists custom events separately", () => {
     expect(funnel.creators.map((c) => c.creator)).toEqual(["vish", "asha", "Unknown"]);
     expect(funnel.customEvents).toEqual([{ name: "add_to_cart", count: 7 }]);
+  });
+
+  it("builds export rows with a total and PDF-safe revenue text", () => {
+    const rows = conversionExportRows(funnel);
+    expect(rows.map((r) => r.Creator)).toEqual(["vish", "asha", "Unknown", "Total"]);
+    expect(rows[0]).toEqual({
+      Creator: "vish",
+      Clicks: 100,
+      Visits: 80,
+      Signups: 20,
+      Purchases: 5,
+      "Verified purchases": 3,
+      Revenue: "INR 2,500",
+      "Click to purchase": "5%",
+    });
+    expect(rows.at(-1)).toMatchObject({ Clicks: 155, Purchases: 7, Revenue: "INR 2,500 + USD 90.50" });
+    expect(rows[2]).toMatchObject({ Revenue: "-", "Click to purchase": "0%" });
   });
 
   it("reports no events for clicks alone", () => {
@@ -225,6 +245,26 @@ describe("TtlCache", () => {
     now = 100;
     expect(cache.get("b")).toBeUndefined();
     expect(cache.size).toBe(1);
+  });
+});
+
+describe("RateLimiter", () => {
+  it("allows up to the limit per key, then blocks until the window resets", () => {
+    let now = 0;
+    const limiter = new RateLimiter(3, 60_000, 100, () => now);
+    expect([1, 2, 3].map(() => limiter.hit("a").allowed)).toEqual([true, true, true]);
+    const blocked = limiter.hit("a");
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.retryAfterSeconds).toBe(60);
+    expect(limiter.hit("b").allowed).toBe(true);
+    now = 60_000;
+    expect(limiter.hit("a").allowed).toBe(true);
+  });
+
+  it("stays bounded when many different keys arrive", () => {
+    const limiter = new RateLimiter(1, 60_000, 50, () => 0);
+    for (let i = 0; i < 500; i++) limiter.hit(`ip-${i}`);
+    expect(limiter.hit("fresh").allowed).toBe(true);
   });
 });
 

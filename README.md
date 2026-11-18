@@ -1,6 +1,8 @@
-# Link Tracking System
+# Linkto
 
-A comprehensive link tracking platform built with Next.js and Supabase that enables brands to track campaign performance, creator engagement, and detailed traffic analytics.
+Creator link tracking from click to purchase. Each creator gets a branded link; Linkto
+records the click, then follows it through to the visit, signup and purchase on the
+brand's site and reports revenue per creator. Built with Next.js and Supabase.
 
 
 ## 📦 Installation
@@ -8,8 +10,8 @@ A comprehensive link tracking platform built with Next.js and Supabase that enab
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-url>
-   cd my-app
+   git clone https://github.com/VisheeshG/linkto.git
+   cd linkto
    ```
 
 2. **Install dependencies**
@@ -68,9 +70,10 @@ coupons or affiliate software.
 
 - **Set up:** apply `supabase/migrations/20261112000000_conversion_tracking.sql`, then
   Dashboard → **Conversion tracking** → **Add website**.
-- **Verified purchases:** apply `supabase/migrations/20261118000000_server_purchases_only.sql`
-  to get the per-website switch that only counts purchases sent from the brand's server
-  (browser-sent purchases can be faked).
+- **Verified purchases:** `20261118000000_server_purchases_only.sql` adds the per-website
+  switch that only counts purchases sent from the brand's server (browser-sent purchases
+  can be faked); `20261119000000_conversion_summary_verified.sql` shows verified counts
+  in reports and exports.
 - **Guide for brands (copy-paste):** [docs/brand-integration-guide.md](docs/brand-integration-guide.md),
   also served at `/guide`.
 - **How it works, testing, API reference:** [docs/conversion-tracking.md](docs/conversion-tracking.md).

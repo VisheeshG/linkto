@@ -23,6 +23,13 @@ import { BreakdownCard } from "./analytics/BreakdownCard";
 import { CreatorDetailDialog } from "./analytics/CreatorDetailDialog";
 import { CreatorTable } from "./analytics/CreatorTable";
 import { ConversionsPanel } from "./analytics/ConversionsPanel";
+import { loadConversions } from "@/lib/conversion-source";
+import {
+  buildFunnel,
+  conversionExportRows,
+  dateKeysToRange,
+  type ConversionExportRow,
+} from "@/lib/conversions";
 import { LinkSetupPanel } from "./analytics/LinkSetupPanel";
 import { TrafficQualityCard } from "./analytics/TrafficQualityCard";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -367,14 +374,42 @@ export function Analytics({
       .toISOString()
       .slice(0, 10)}`;
 
-  const handleExportExcel = () => {
+  /**
+   * Funnel rows for the exports (same data as the Conversions tab). Empty
+   * when nothing has been reported yet; a load failure never blocks the
+   * click export.
+   */
+  const loadConversionExportRows = async (): Promise<ConversionExportRow[]> => {
+    try {
+      const { from, to } = dateKeysToRange(startDate, endDate);
+      const funnel = buildFunnel(
+        await loadConversions(clickSource, [link.id], { from, to, humanOnly: hideBots })
+      );
+      return funnel.hasEvents ? conversionExportRows(funnel) : [];
+    } catch (error) {
+      console.error("Error loading conversions for export:", error);
+      toast.error("Conversions couldn't be loaded, so the export has clicks only.");
+      return [];
+    }
+  };
+
+  const handleExportExcel = async () => {
     const canExport =
       exportRows.length > 0 ||
       summaryRowsFlat.length > 0 ||
       weeklyRows.length > 0;
     if (!canExport) return;
+    const conversionRows = await loadConversionExportRows();
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
+
+    if (conversionRows.length > 0) {
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(conversionRows),
+        "Conversions"
+      );
+    }
 
     // Summary = the same "Clicks by ..." cards shown on the page
     const summaryWorksheet = XLSX.utils.json_to_sheet(summaryRowsFlat);
@@ -392,12 +427,13 @@ export function Analytics({
     XLSX.writeFile(workbook, `${getExportFilenamePrefix()}.xlsx`);
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     const canExport =
       exportRows.length > 0 ||
       summaryRowsFlat.length > 0 ||
       weeklyRows.length > 0;
     if (!canExport) return;
+    const conversionRows = await loadConversionExportRows();
 
     const doc = new jsPDF({ orientation: "landscape" });
     doc.setFontSize(14);
@@ -408,6 +444,31 @@ export function Analytics({
     doc.text(`Total Clicks: ${data.totalClicks}`, 14, 32);
 
     let currentY = 38;
+
+    // Conversions (same numbers as the Conversions tab), when there are any.
+    if (conversionRows.length > 0) {
+      const columns = Object.keys(conversionRows[0]) as (keyof ConversionExportRow)[];
+      doc.setFontSize(12);
+      doc.text("Conversions by creator", 14, currentY);
+      currentY += 5;
+      autoTable(doc, {
+        startY: currentY,
+        head: [columns],
+        body: conversionRows.map((row) => columns.map((column) => row[column])),
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 14, right: 14 },
+        didParseCell: (cell) => {
+          if (cell.section === "body" && cell.row.index === conversionRows.length - 1) {
+            cell.cell.styles.fontStyle = "bold";
+          }
+        },
+      });
+      const lastFinalYConversions = (
+        doc as unknown as { lastAutoTable?: { finalY?: number } }
+      ).lastAutoTable?.finalY;
+      currentY = (lastFinalYConversions ?? currentY) + 10;
+    }
 
     // Weekly analytics section (same as the weekly chart)
     doc.setFontSize(12);

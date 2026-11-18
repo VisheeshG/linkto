@@ -161,6 +161,19 @@ export function Auth({ mode = "signin" }: { mode?: "signin" | "signup" }) {
             <Button type="submit" size="lg" loading={loading} className="w-full">
               {isSignUp ? "Create account" : "Sign in"}
             </Button>
+            {isSignUp && (
+              <p className="text-center text-xs text-slate-600">
+                By creating an account you agree to the{" "}
+                <NextLink href="/terms" className="font-medium text-primary-700 hover:underline">
+                  Terms
+                </NextLink>{" "}
+                and{" "}
+                <NextLink href="/privacy" className="font-medium text-primary-700 hover:underline">
+                  Privacy policy
+                </NextLink>
+                .
+              </p>
+            )}
           </form>
         </div>
 

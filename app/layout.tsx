@@ -35,20 +35,11 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     title: defaultTitle,
     description: siteConfig.description,
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Linkto — Creator link tracking platform",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: defaultTitle,
     description: siteConfig.description,
-    images: ["/og-image.png"],
   },
   robots: {
     index: true,

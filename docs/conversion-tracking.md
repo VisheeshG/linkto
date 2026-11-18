@@ -28,8 +28,9 @@ The brand needs no referral codes, coupons or affiliate software.
 
 ## Turning it on
 
-1. **Apply the migrations** `supabase/migrations/20261112000000_conversion_tracking.sql`
-   and `20261118000000_server_purchases_only.sql`
+1. **Apply the migrations** in `supabase/migrations/`, in order:
+   `20261112000000_conversion_tracking.sql`, `20261118000000_server_purchases_only.sql`
+   and `20261119000000_conversion_summary_verified.sql`
    (for example `supabase db push`). It is safe to run more than once.
 2. **Deploy the app.** No new environment variables. The code tolerates being deployed
    before the migration: redirects keep working, click IDs are simply not handed out, and
@@ -90,6 +91,7 @@ snippets, and the browser snippet (`public/t.js`, run against a fake browser).
 | Project page → **Conversions** | The same for every link in the campaign (all time) |
 | Brand page → Analytics → **Conversions** | The same across the brand's campaigns |
 | Shared report | "After the click" section, once the first event has arrived |
+| Link analytics → **Export** | PDF and Excel include a "Conversions by creator" table / sheet when there are events |
 | **Conversion tracking** (`/dashboard/integration`) | Websites, snippets, test checklist, keys |
 
 ## Events API
@@ -124,6 +126,7 @@ Responses:
 | 202 | `pending` | Browser visit arrived before the click was saved; retried automatically |
 | 400 | — | Invalid body (the `error` says what) |
 | 401 | — | Unknown site key or secret key |
+| 429 | — | Too many requests; retry after the `Retry-After` seconds |
 | 403 | `forbidden` | The click belongs to another Linkto account |
 | 404 | `unknown_click` | No click (or earlier event for that `user_id`) to credit |
 | 410 | `expired` | Click is older than the attribution window |
@@ -162,6 +165,10 @@ numbers, after the site reports purchases from its payment webhook. The Shopify 
 WooCommerce recipes report purchases from the browser, so leave it off for those unless
 the store's server also reports orders. Every stored event records its `source`
 (`browser` or `server`).
+
+Reports show how many purchases were verified ("3 of 5 verified by server" on the
+Purchases tile), and the exports have a "Verified purchases" column. This needs
+`20261119000000_conversion_summary_verified.sql`; without it the count shows as zero.
 
 ## Data model
 
@@ -203,10 +210,12 @@ only, never individual events, customer IDs or order IDs.
 - **Browser events are not proof.** Like any tracking pixel, a visitor can forge an
   event for their own click. Where payouts depend on the numbers, use
   [verified purchases](#verified-purchases).
-- **No rate limiting** on the events endpoint yet beyond the de-duplication rules.
+- **Rate limiting is per server instance.** The events endpoint allows 300 requests a
+  minute per visitor IP and 3,000 a minute per website for server calls, then answers
+  `429` with `Retry-After`. Counters live in memory, so on a platform running several
+  instances the real ceiling is higher; add a firewall rule if you need a hard limit.
 - **Click breakdowns** (cities, devices, the map) still load raw click rows in the
   browser; only conversion reports and per-link counts are grouped in the database.
-- **Exports** (PDF / Excel) do not include conversions yet.
 
 ## Code map
 
@@ -219,6 +228,7 @@ only, never individual events, customer IDs or order IDs.
 | `app/api/v1/events/route.ts` | Events endpoint |
 | `lib/conversion-events.ts` | Event validation and statuses |
 | `lib/tracking-sites.ts` | Key lookup (cached) |
+| `lib/rate-limit.ts` | In-memory rate limiter for the events endpoint |
 | `lib/conversions.ts`, `lib/conversion-source.ts` | Funnel maths and data loading |
 | `components/analytics/ConversionsPanel.tsx` | Funnel + per-creator table |
 | `components/integration/*`, `app/dashboard/integration` | Integration page |

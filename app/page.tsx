@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Linkto — Creator link tracking & analytics",
+    title: defaultTitle,
     description: siteConfig.description,
     url: "/",
   },

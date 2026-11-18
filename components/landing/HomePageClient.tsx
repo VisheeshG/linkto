@@ -15,14 +15,8 @@ function HomePageContent() {
     }
   }, [loading, user, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-cyan-400/30 border-t-cyan-400 animate-spin" />
-      </div>
-    );
-  }
-
+  // The landing page is rendered straight away (and on the server) so search
+  // engines and link previews see it; signed-in visitors are then sent on.
   if (user) return null;
 
   return <LinktoLanding />;

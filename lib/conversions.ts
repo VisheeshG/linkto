@@ -10,6 +10,8 @@ export type ConversionSummaryRow = {
   currency: string;
   events: number;
   revenue: number;
+  /** Events sent by the site's server (secret key). Missing on older databases. */
+  verified_events?: number;
 };
 
 export type CreatorClickRow = { creator_username: string; clicks: number };
@@ -22,6 +24,8 @@ export type FunnelCounts = {
   visits: number;
   signups: number;
   purchases: number;
+  /** Purchases reported by the site's server, which a visitor cannot forge. */
+  verifiedPurchases: number;
   revenue: Revenue;
 };
 
@@ -50,6 +54,7 @@ const emptyCounts = (): FunnelCounts => ({
   visits: 0,
   signups: 0,
   purchases: 0,
+  verifiedPurchases: 0,
   revenue: {},
 });
 
@@ -103,6 +108,8 @@ export function buildFunnel(data: Pick<ConversionData, "summary" | "clicksByCrea
       case "purchase": {
         row.purchases += events;
         totals.purchases += events;
+        row.verifiedPurchases += Number(group.verified_events) || 0;
+        totals.verifiedPurchases += Number(group.verified_events) || 0;
         const amount = Number(group.revenue) || 0;
         if (group.currency && amount) {
           row.revenue[group.currency] = (row.revenue[group.currency] ?? 0) + amount;
@@ -157,6 +164,50 @@ export function formatRevenue(revenue: Revenue): string {
   const entries = revenueEntries(revenue);
   if (entries.length === 0) return "—";
   return entries.map(([currency, amount]) => formatMoney(amount, currency)).join(" + ");
+}
+
+/** "INR 12,499.50 + USD 80": plain text for PDF and spreadsheet cells. */
+export function formatRevenuePlain(revenue: Revenue): string {
+  const entries = revenueEntries(revenue);
+  if (entries.length === 0) return "-";
+  return entries
+    .map(
+      ([currency, amount]) =>
+        `${currency} ${amount.toLocaleString("en-IN", {
+          minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+          maximumFractionDigits: 2,
+        })}`
+    )
+    .join(" + ");
+}
+
+export type ConversionExportRow = {
+  Creator: string;
+  Clicks: number;
+  Visits: number;
+  Signups: number;
+  Purchases: number;
+  "Verified purchases": number;
+  Revenue: string;
+  "Click to purchase": string;
+};
+
+/** One row per creator plus a Total row, for the PDF and Excel exports. */
+export function conversionExportRows(funnel: Funnel): ConversionExportRow[] {
+  const toRow = (label: string, counts: FunnelCounts): ConversionExportRow => ({
+    Creator: label,
+    Clicks: counts.clicks,
+    Visits: counts.visits,
+    Signups: counts.signups,
+    Purchases: counts.purchases,
+    "Verified purchases": counts.verifiedPurchases,
+    Revenue: formatRevenuePlain(counts.revenue),
+    "Click to purchase": formatRate(counts.purchases, counts.clicks).replace("—", "-"),
+  });
+  return [
+    ...funnel.creators.map((c) => toRow(c.creator, c)),
+    toRow("Total", funnel.totals),
+  ];
 }
 
 /** "4.2%" with one decimal below 10%; "—" when there is nothing to divide by. */

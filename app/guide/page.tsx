@@ -188,7 +188,15 @@ export default function GuidePage() {
         {siteConfig.name} · Questions?{" "}
         <a href="mailto:hello@linkto.in" className="font-medium text-primary-700 hover:underline">
           hello@linkto.in
-        </a>
+        </a>{" "}
+        ·{" "}
+        <Link href="/privacy" className="font-medium text-primary-700 hover:underline">
+          Privacy
+        </Link>{" "}
+        ·{" "}
+        <Link href="/terms" className="font-medium text-primary-700 hover:underline">
+          Terms
+        </Link>
       </footer>
     </div>
   );

@@ -1,7 +1,7 @@
 {
   "name": "Linkto",
   "short_name": "Linkto",
-  "description": "Creator-focused link tracking with branded URLs and campaign analytics.",
+  "description": "Creator links tracked from click to signup and purchase.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
